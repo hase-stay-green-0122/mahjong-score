@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 // ============================================================
 // CONSTANTS & HELPERS
@@ -216,15 +216,6 @@ h1, h2, h3 { font-family: var(--font); }
 }
 .score-input-field:focus { border-color: var(--accent); }
 
-/* Round display */
-.round-badge {
-  background: rgba(200,168,90,0.15); border: 1px solid var(--accent);
-  border-radius: 20px; padding: 4px 14px; font-size: 13px; color: var(--accent); font-weight: 700;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.kyotaku-row { display: flex; align-items: center; justify-content: space-between; }
-.kyotaku-ctrl { display: flex; align-items: center; gap: 8px; }
-.kyotaku-num { font-family: var(--font); font-size: 20px; font-weight: 900; color: var(--red); min-width: 24px; text-align: center; }
 .kyotaku-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.12s; }
 .kyotaku-btn:active { transform: scale(0.85); background: var(--accent); color: #fff; border-color: var(--accent); }
 
@@ -367,12 +358,6 @@ h1, h2, h3 { font-family: var(--font); }
   background: linear-gradient(90deg, transparent, rgba(179,136,255,0.4), transparent);
   width: 80%;
 }
-.hero-stats {
-  display: flex; justify-content: center; gap: 20px;
-}
-.hero-stat { text-align: center; }
-.hero-stat-num { font-family: var(--font); font-size: 22px; font-weight: 900; color: var(--accent2); }
-.hero-stat-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-top: 1px; }
 
 .annual-ranking { display: flex; flex-direction: column; gap: 6px; }
 .annual-row {
@@ -449,8 +434,6 @@ input[type=number] { -moz-appearance: textfield; }
 
 .animate-in { animation: fadeUp 0.25s ease both; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-
-.honba-ctrl { display: flex; align-items: center; gap: 8px; }
 
 /* confirm modal */
 .modal-overlay {
@@ -692,16 +675,6 @@ export default function App() {
 // ============================================================
 // HOME
 // ============================================================
-const TILE_DECORATIONS = [
-  { top: "8%", left: "4%", delay: "0s" },
-  { top: "12%", right: "6%", delay: "2s" },
-  { top: "55%", left: "2%", delay: "4s" },
-  { top: "60%", right: "3%", delay: "1s" },
-  { top: "30%", left: "8%", delay: "6s" },
-  { top: "35%", right: "8%", delay: "3s" },
-];
-const TILE_CHARS = ["🀇", "🀙", "🀀", "🀄", "🀅", "🀆"];
-
 function HomeScreen({ onStart, games, setView }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
@@ -956,8 +929,6 @@ function SetupScreen({ settings, onStart }) {
 // GAME
 // ============================================================
 const WINDS_4 = ["東", "南", "西", "北"];
-const ROUND_WINDS = ["東", "南"];
-
 function GameScreen({ gs, setGs, onFinish }) {
   const [inputMode, setInputMode] = useState(false);
   const [tempPoints, setTempPoints] = useState(gs.players.map((p) => String(p.points)));
@@ -1346,64 +1317,6 @@ function ScoresScreen({ games, year, setYear }) {
 // STATS（グラフ）
 // ============================================================
 const GRAPH_COLORS = ["#b388ff", "#64a0f0", "#78d2aa", "#e6648c", "#ffb347", "#7ce8e8", "#ff8fab", "#b5e48c"];
-
-function LineGraph({ data, yMin, yMax, width = 300, height = 120, color = "#b388ff", zeroLine = true }) {
-  if (!data || data.length < 2) return null;
-  const pad = { top: 10, right: 10, bottom: 10, left: 10 };
-  const W = width - pad.left - pad.right;
-  const H = height - pad.top - pad.bottom;
-  const range = yMax - yMin || 1;
-  const toX = (i) => pad.left + (i / (data.length - 1)) * W;
-  const toY = (v) => pad.top + H - ((v - yMin) / range) * H;
-  const points = data.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
-  const zeroY = toY(0);
-  const areaPoints = `${toX(0)},${pad.top + H} ${data.map((v, i) => `${toX(i)},${toY(v)}`).join(" ")} ${toX(data.length - 1)},${pad.top + H}`;
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
-      {/* Zero line */}
-      {zeroLine && zeroY >= pad.top && zeroY <= pad.top + H && (
-        <line x1={pad.left} y1={zeroY} x2={pad.left + W} y2={zeroY} stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="3,3" />
-      )}
-      {/* Area fill */}
-      <polygon points={areaPoints} fill={color} fillOpacity="0.1" />
-      {/* Line */}
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-      {/* Dots */}
-      {data.map((v, i) => (
-        <circle key={i} cx={toX(i)} cy={toY(v)} r="3.5" fill={color} stroke="var(--bg)" strokeWidth="1.5" />
-      ))}
-    </svg>
-  );
-}
-
-function RankGraph({ data, width = 300, height = 80, color = "#b388ff", maxRank = 4 }) {
-  if (!data || data.length < 2) return null;
-  const pad = { top: 8, right: 10, bottom: 8, left: 10 };
-  const W = width - pad.left - pad.right;
-  const H = height - pad.top - pad.bottom;
-  // rank: 1 is best (top), maxRank is worst (bottom) — invert Y
-  const toX = (i) => pad.left + (i / (data.length - 1)) * W;
-  const toY = (v) => pad.top + ((v - 1) / (maxRank - 1)) * H;
-  const points = data.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
-      {/* Rank grid lines */}
-      {Array.from({ length: maxRank }).map((_, r) => {
-        const y = toY(r + 1);
-        return <line key={r} x1={pad.left} y1={y} x2={pad.left + W} y2={y} stroke="rgba(255,255,255,0.07)" strokeWidth="1" />;
-      })}
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="5,3" />
-      {data.map((v, i) => (
-        <g key={i}>
-          <circle cx={toX(i)} cy={toY(v)} r="4" fill={color} stroke="var(--bg)" strokeWidth="1.5" />
-          <text x={toX(i)} y={toY(v) - 7} textAnchor="middle" fontSize="9" fill={color} fontFamily="var(--font)" fontWeight="700">{v}位</text>
-        </g>
-      ))}
-    </svg>
-  );
-}
 
 function StatsScreen({ games, year, setYear }) {
   const [activePlayer, setActivePlayer] = useState(null);
