@@ -250,7 +250,21 @@ export default function App() {
   const updateGame = ug => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); setEditingGame(null); setView(VIEWS.HISTORY); };
   const saveSettings = s => persist({ ...data, settings:s });
 
-  const confirmFinish = () => setModal({ title:"対局を終了しますか？", sub:"現在の点数で集計します", confirmLabel:"終了して集計", onConfirm:()=>{ setModal(null); finishGame(gs); } });
+  const confirmFinish = () => {
+    const total = gs.players.reduce((s,p)=>s+p.points,0);
+    const expected = gs.settings.startPoints * gs.settings.playerCount;
+    const diff = total - expected;
+    if (diff !== 0) {
+      setModal({
+        title:"合計点が合いません",
+        sub:`現在の合計：${total.toLocaleString()}点（${diff>0?"+":""}${diff}点）\n素点を確認してください。`,
+        confirmLabel:"閉じる",
+        onConfirm:()=>setModal(null),
+      });
+      return;
+    }
+    setModal({ title:"対局を終了しますか？", sub:"現在の点数で集計します", confirmLabel:"終了して集計", onConfirm:()=>{ setModal(null); finishGame(gs); } });
+  };
 
   const Header = ({title, backFn, rightEl}) => (
     <div className="app-header">
