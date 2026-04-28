@@ -45,7 +45,7 @@ function calcFinalScores(players, settings) {
   const oka = (settings.returnPoints - settings.startPoints) * settings.playerCount;
   const ranked = [...players].map((p,i)=>({...p,origIdx:i,rawPoints:p.points})).sort((a,b)=>b.points-a.points||a.origIdx-b.origIdx);
   ranked[0].points += oka;
-  return ranked.map((p,rank)=>{
+  const results = ranked.map((p,rank)=>{
     // 五捨六入：百の位を五捨六入してから1000で割る
     const rawExact = (p.points - settings.returnPoints) / 1000;
     const raw = Math.floor(rawExact + 0.4); // 0.5未満切捨て、0.6以上切上げ
@@ -55,6 +55,12 @@ function calcFinalScores(players, settings) {
     const finalTotal = settings.playerCount === 3 ? Math.floor(total / 2) : total;
     return { ...p, rank:rank+1, rawPoints:p.rawPoints, raw, uma, total:finalTotal };
   });
+  // 三麻：1着のスコアは2・3着の合計を0から引いた残差（ゼロサム保証）
+  if(settings.playerCount === 3) {
+    const othersSum = results.slice(1).reduce((s,r)=>s+r.total, 0);
+    results[0].total = -othersSum;
+  }
+  return results;
 }
 function genId() { return Math.random().toString(36).slice(2,9); }
 function formatPt(n, w=false) {
@@ -462,13 +468,13 @@ function SetupScreen({ settings, onStart }) {
 }
 
 function GameScreen({ gs, onFinish }) {
-  // 100点単位で入力（例: 25000点 → 250と入力）
-  const [tmp, setTmp] = useState(gs.players.map(p=>String(Math.round(p.points/100))));
+  // 1000点単位で入力（例: 38600点 → 38.6と入力）
+  const [tmp, setTmp] = useState(gs.players.map(p=>String(p.points/1000)));
   const [showError, setShowError] = useState(false);
   const [memo, setMemo] = useState(gs.memo||"");
 
-  // 100倍して実際の点数に戻す
-  const parsedTmp = tmp.map(v=>(parseInt(String(v).replace(/,/g,""),10)||0)*100);
+  // 1000倍して実際の点数に戻す
+  const parsedTmp = tmp.map(v=>(parseFloat(String(v).replace(/,/g,""))||0)*1000);
   const total = parsedTmp.reduce((s,v)=>s+v,0);
   const expected = gs.settings.startPoints * gs.settings.playerCount;
   const diff = total - expected;
@@ -489,7 +495,7 @@ function GameScreen({ gs, onFinish }) {
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div className="card-title" style={{margin:0}}>素点入力</div>
-          <div style={{fontSize:11,color:"var(--muted)"}}>※ 百の位から入力（100点単位）</div>
+          <div style={{fontSize:11,color:"var(--muted)"}}>※ 小数点以下1桁まで（×1000点）</div>
         </div>
         <div className="score-grid">
           {gs.players.map((p,i)=>{
@@ -499,11 +505,11 @@ function GameScreen({ gs, onFinish }) {
                 <div className="player-badge" style={{background:PLAYER_COLORS[i].bg,color:PLAYER_COLORS[i].color,width:28,height:28,fontSize:11}}>{rank}位</div>
                 <span className="score-name">{p.name}</span>
                 <div style={{display:"flex",alignItems:"center",gap:4}}>
-                  <input className="score-input-field" type="number" value={tmp[i]}
+                  <input className="score-input-field" type="number" step="0.1" value={tmp[i]}
                     onFocus={e=>e.target.select()}
                     onChange={e=>{const t=[...tmp];t[i]=e.target.value;setTmp(t);setShowError(false);}}
                     style={{width:80,textAlign:"right"}}/>
-                  <span style={{fontSize:13,color:"var(--muted)",fontWeight:700}}>× 100</span>
+                  <span style={{fontSize:13,color:"var(--muted)",fontWeight:700}}>× 1000</span>
                 </div>
               </div>
             );
@@ -667,13 +673,13 @@ function HistoryScreen({ games, onEdit, onDelete }) {
 function EditGameScreen({ game, onSave, onCancel }) {
   const sorted = [...game.results].sort((a,b)=>a.origIdx-b.origIdx);
   const [names, setNames] = useState(sorted.map(r=>r.name));
-  // 100点単位で入力
-  const [rawPoints, setRawPoints] = useState(sorted.map(r=>String(Math.round(r.points/100))));
+  // 1000点単位で入力（例: 38600点 → 38.6と入力）
+  const [rawPoints, setRawPoints] = useState(sorted.map(r=>String(r.points/1000)));
   const [date, setDate] = useState(game.date.slice(0,10));
   const { settings:s } = game;
   const pc = s.playerCount;
-  // 100倍して実際の点数に戻す
-  const parsed = rawPoints.map(v=>(parseInt(v.replace(/,/g,""),10)||0)*100);
+  // 1000倍して実際の点数に戻す
+  const parsed = rawPoints.map(v=>(parseFloat(v.replace(/,/g,""))||0)*1000);
   const total = parsed.reduce((a,b)=>a+b,0);
   const exp = s.startPoints*pc;
   const diff = total-exp;
@@ -688,7 +694,7 @@ function EditGameScreen({ game, onSave, onCancel }) {
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div className="card-title" style={{margin:0}}>点数・名前を編集</div>
-          <div style={{fontSize:11,color:"var(--muted)"}}>※ 百の位から入力（100点単位）</div>
+          <div style={{fontSize:11,color:"var(--muted)"}}>※ 小数点以下1桁まで（×1000点）</div>
         </div>
         <div className="score-grid">
           {Array.from({length:pc}).map((_,i)=>(
@@ -697,10 +703,10 @@ function EditGameScreen({ game, onSave, onCancel }) {
               <input className="player-input" value={names[i]} style={{flex:1,fontSize:14,padding:"5px 10px"}}
                 onChange={e=>{const n=[...names];n[i]=e.target.value;setNames(n);}}/>
               <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <input className="score-input-field" type="number" value={rawPoints[i]} onFocus={e=>e.target.select()}
+                <input className="score-input-field" type="number" step="0.1" value={rawPoints[i]} onFocus={e=>e.target.select()}
                   onChange={e=>{const p=[...rawPoints];p[i]=e.target.value;setRawPoints(p);}}
                   style={{width:80,textAlign:"right"}}/>
-                <span style={{fontSize:13,color:"var(--muted)",fontWeight:700}}>× 100</span>
+                <span style={{fontSize:13,color:"var(--muted)",fontWeight:700}}>× 1000</span>
               </div>
             </div>
           ))}
