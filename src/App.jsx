@@ -149,9 +149,10 @@ h1,h2,h3{font-family:var(--font)}
 .history-header{padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px}
 .history-body{padding:10px 14px;display:flex;flex-direction:column;gap:6px}
 .history-player-row{display:flex;align-items:center;gap:8px;font-size:13px}
-.history-rank{font-weight:900;min-width:20px}
-.history-pname{flex:1}
-.history-score{font-weight:700}
+.history-rank{font-weight:900;min-width:20px;text-align:center}
+.history-pname{flex:1;min-width:0}
+.history-rawpts{font-size:12px;color:var(--muted);min-width:72px;text-align:right}
+.history-score{font-weight:700;min-width:52px;text-align:right}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:10px}
 .stat-header{padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
 .stat-body{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
@@ -646,7 +647,7 @@ function HistoryScreen({ games, onEdit, onDelete }) {
               <div key={i} className="history-player-row">
                 <span className="history-rank" style={{color:["var(--accent)","#aaa","#c87","var(--muted)"][i]}}>{r.rank}</span>
                 <span className="history-pname">{r.name}</span>
-                <span style={{fontSize:12,color:"var(--muted)",marginRight:8}}>{r.points.toLocaleString()}点</span>
+                <span className="history-rawpts">{(r.rawPoints||0).toLocaleString()}点</span>
                 <span className="history-score" style={{color:r.total>=0?"var(--green)":"var(--red)"}}>{formatPt(r.total,true)}</span>
               </div>
             ))}
