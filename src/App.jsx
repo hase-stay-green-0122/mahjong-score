@@ -25,7 +25,7 @@ const PLAYER_COLORS = [
   { bg:"rgba(120,210,170,0.25)", color:"#78d2aa" },
   { bg:"rgba(230,100,140,0.25)", color:"#e6648c" },
 ];
-const MEMBER_LIST = ["居石","小笠原","齋藤（肇）","齋藤（蓮）","関根","長谷川","遠藤","畑福","藤原","田村","長谷目（弘）","長谷目（大）"];
+const MEMBER_LIST = ["居石","小笠原","齋藤（肇）","齋藤（蓮）","関根","長谷川","遠藤","畑福","藤原","田村","長谷目（弘）","長谷目（大）","江口"];
 const TABLE_COLORS = [
   { color:"#b388ff", border:"rgba(179,136,255,0.4)" },
   { color:"#64a0f0", border:"rgba(100,160,240,0.4)" },
@@ -46,11 +46,14 @@ function calcFinalScores(players, settings) {
   const ranked = [...players].map((p,i)=>({...p,origIdx:i,rawPoints:p.points})).sort((a,b)=>b.points-a.points||a.origIdx-b.origIdx);
   ranked[0].points += oka;
   return ranked.map((p,rank)=>{
-    // 五捨六入：小数点以下を切り捨て（0.5は切り捨て、0.6以上は切り上げ）
+    // 五捨六入：百の位を五捨六入してから1000で割る
     const rawExact = (p.points - settings.returnPoints) / 1000;
-    const raw = Math.floor(rawExact + 0.4); // 五捨六入 = +0.4してfloor = 0.5未満切捨て、0.6以上切上げ
+    const raw = Math.floor(rawExact + 0.4); // 0.5未満切捨て、0.6以上切上げ
     const uma = settings.uma[rank];
-    return { ...p, rank:rank+1, rawPoints:p.rawPoints, raw, uma, total:raw+uma };
+    const total = raw + uma;
+    // 三麻は÷2（端数切り捨て）
+    const finalTotal = settings.playerCount === 3 ? Math.floor(total / 2) : total;
+    return { ...p, rank:rank+1, rawPoints:p.rawPoints, raw, uma, total:finalTotal };
   });
 }
 function genId() { return Math.random().toString(36).slice(2,9); }
@@ -225,6 +228,7 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [statsYear, setStatsYear] = useState(new Date().getFullYear());
   const [scoresYear, setScoresYear] = useState(new Date().getFullYear());
+  const [scrollTarget, setScrollTarget] = useState(null);
 
   useEffect(() => {
     const unsub = onSnapshot(DATA_DOC, snap => {
@@ -291,7 +295,7 @@ export default function App() {
         </div>
       )}
       <div id="root">
-        {view===VIEWS.HOME && <HomeScreen onStart={()=>setView(VIEWS.SETUP)} games={data.games}/>}
+        {view===VIEWS.HOME && <HomeScreen onStart={()=>setView(VIEWS.SETUP)} games={data.games} onPlayerTap={name=>{setScoresYear(new Date().getFullYear());setScrollTarget(name);setView(VIEWS.SCORES);}}/>}
         {view===VIEWS.SETUP && (<><Header title="新規対局" backFn={goHome}/><SetupScreen settings={data.settings} onStart={startGames}/></>)}
         {view===VIEWS.GAME && gs && (
           <>
@@ -325,7 +329,7 @@ export default function App() {
             onDelete={id=>setModal({title:"この対局を削除しますか？",sub:"削除すると元に戻せません",confirmLabel:"削除する",onConfirm:()=>deleteGame(id)})}/>
         )}
         {view===VIEWS.STATS && <StatsScreen games={data.games} year={statsYear} setYear={setStatsYear}/>}
-        {view===VIEWS.SCORES && <ScoresScreen games={data.games} year={scoresYear} setYear={setScoresYear}/>}
+        {view===VIEWS.SCORES && <ScoresScreen games={data.games} year={scoresYear} setYear={setScoresYear} scrollTarget={scrollTarget} clearScrollTarget={()=>setScrollTarget(null)}/>}
         {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings}/>}
         {[VIEWS.HOME,VIEWS.HISTORY,VIEWS.STATS,VIEWS.SCORES,VIEWS.SETTINGS].includes(view) && (
           <nav className="bottom-nav">
@@ -342,7 +346,7 @@ export default function App() {
   );
 }
 
-function HomeScreen({ onStart, games }) {
+function HomeScreen({ onStart, games, onPlayerTap }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const { yearGames, playerMap } = buildYearData(games, year);
@@ -378,13 +382,19 @@ function HomeScreen({ onStart, games }) {
             </div>
             <div className="annual-ranking">
               {ranking.map((p,i)=>(
-                <div key={p.name} className={`annual-row ${i===0?"rank1":i===1?"rank2":i===2?"rank3":""}`}>
+                <div key={p.name} className={`annual-row ${i===0?"rank1":i===1?"rank2":i===2?"rank3":""}`}
+                  onClick={()=>onPlayerTap(p.name)}
+                  style={{cursor:"pointer",transition:"opacity 0.15s"}}
+                  onPointerDown={e=>e.currentTarget.style.opacity="0.6"}
+                  onPointerUp={e=>e.currentTarget.style.opacity="1"}
+                  onPointerLeave={e=>e.currentTarget.style.opacity="1"}>
                   <span className={`annual-rank-num ${i===0?"r1":i===1?"r2":i===2?"r3":"rn"}`}>{i<3?RANK_MEDALS[i]:`${i+1}`}</span>
                   <div style={{flex:1}}>
                     <div className="annual-name">{p.name}</div>
                     <div className="annual-games">{p.games}戦 / 平均{formatPt(p.avg,true)}</div>
                   </div>
                   <span className={`annual-score ${p.totalScore>0?"pos":p.totalScore<0?"neg":"zero"}`}>{formatPt(p.totalScore,true)}</span>
+                  <span style={{fontSize:14,color:"var(--muted)",marginLeft:6,alignSelf:"center"}}>›</span>
                 </div>
               ))}
             </div>
@@ -723,7 +733,7 @@ function EditGameScreen({ game, onSave, onCancel }) {
   );
 }
 
-function ScoresScreen({ games, year, setYear }) {
+function ScoresScreen({ games, year, setYear, scrollTarget, clearScrollTarget }) {
   const { yearGames, playerMap } = buildYearData(games, year);
   const players = Object.values(playerMap).map(p=>({
     ...p,
@@ -731,8 +741,17 @@ function ScoresScreen({ games, year, setYear }) {
     winRate:    Math.round((p.wins/p.games)*100),
     renRate:    Math.round((p.top2/p.games)*100),
     avgRank:    Math.round((p.ranks.reduce((a,b)=>a+b,0)/p.ranks.length)*100)/100,
-    avoidRate:  Math.round(((p.games-p.last4)/p.games)*100), // 4着回避率
+    avoidRate:  Math.round(((p.games-p.last4)/p.games)*100),
   })).sort((a,b)=>b.totalScore-a.totalScore);
+
+  useEffect(()=>{
+    if(!scrollTarget) return;
+    const id = `score-player-${scrollTarget}`;
+    const el = document.getElementById(id);
+    if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); }
+    clearScrollTarget();
+  },[scrollTarget]);
+
   return (
     <div className="screen animate-in">
       <YearSelector year={year} setYear={setYear} games={games}/>
@@ -741,7 +760,7 @@ function ScoresScreen({ games, year, setYear }) {
         : <>
           <div style={{fontSize:12,color:"var(--muted)",textAlign:"right"}}>{year}年 全{yearGames.length}対局</div>
           {players.map((p,i)=>(
-            <div key={p.name} className="stat-card">
+            <div key={p.name} id={`score-player-${p.name}`} className="stat-card" style={{transition:"box-shadow 0.4s",boxShadow:scrollTarget===p.name?"0 0 0 2px var(--accent)":"none"}}>
               <div className="stat-header">
                 {i<3?<span>{RANK_MEDALS[i]}</span>:<span style={{color:"var(--muted)",fontSize:13}}>{i+1}位</span>}
                 {p.name}<span style={{marginLeft:"auto",fontSize:13,color:"var(--muted)"}}>{p.games}戦</span>
@@ -860,17 +879,20 @@ function StatsScreen({ games, year, setYear }) {
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,fontFamily:"var(--font)"}}>
           <thead>
             <tr style={{background:"var(--surface2)",borderBottom:"1px solid var(--border)"}}>
-              <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",position:"sticky",left:0,background:"var(--surface2)",zIndex:1}}>プレイヤー</th>
+              <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",position:"sticky",left:0,background:"var(--surface2)",zIndex:1}}>順位　プレイヤー</th>
               <th style={{padding:"8px 6px",textAlign:"center",color:"var(--accent)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",minWidth:48,borderRight:"1px solid var(--border)"}}>総合</th>
-              {yearGames.map((g,i)=>{const d=new Date(g.date);return <th key={i} style={{padding:"8px 6px",textAlign:"center",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",minWidth:48}}>{`${d.getMonth()+1}/${d.getDate()}`}</th>;})}
+              {yearGames.map((g,i)=>{const d=new Date(g.date);return <th key={i} style={{padding:"4px 6px",textAlign:"center",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",minWidth:48}}><div style={{fontSize:10,color:"var(--accent)"}}>{`第${i+1}回`}</div><div>{`${d.getMonth()+1}/${d.getDate()}`}</div></th>;})}
             </tr>
           </thead>
           <tbody>
             {players.map((p,pi)=>(
               <tr key={p.name} style={{borderBottom:"1px solid var(--border)",background:pi%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
                 <td style={{padding:"8px 10px",fontWeight:700,whiteSpace:"nowrap",position:"sticky",left:0,background:"var(--surface)",zIndex:1}}>
-                  <ShapeIcon shape={p.shape} color={p.color} size={6}/>
-                  <span style={{marginLeft:5}}>{p.name}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:11,fontWeight:900,color:["var(--accent)","#aaa","#c87","var(--muted)"][pi]??'var(--muted)',minWidth:14,textAlign:"right"}}>{pi+1}</span>
+                    <ShapeIcon shape={p.shape} color={p.color} size={6}/>
+                    <span style={{textAlign:"left"}}>{p.name}</span>
+                  </div>
                 </td>
                 <td style={{padding:"8px 6px",textAlign:"center",fontWeight:900,fontSize:13,color:p.totalScore>0?"var(--green)":p.totalScore<0?"var(--red)":"var(--muted)",borderRight:"1px solid var(--border)"}}>
                   {formatPt(p.totalScore,true)}
@@ -914,7 +936,7 @@ function StatsScreen({ games, year, setYear }) {
                     {pts.map((pt,i)=>(
                       <g key={i}>
                         <GraphDot shape={p.shape} cx={pt.x} cy={pt.y} r={5} fill={p.color}/>
-                        {isFocus&&<text x={pt.x} y={pt.y-10} textAnchor="middle" fontSize="9" fill={p.color} fontFamily="var(--font)" fontWeight="700">{pt.v>=0?`+${pt.v}`:pt.v}</text>}
+                        {isFocus&&<text x={pt.x} y={pt.y-10} textAnchor="middle" fontSize="9" fill={p.color} fontFamily="var(--font)" fontWeight="700">{pt.v>=0?`+${Number(pt.v).toFixed(1)}`:Number(pt.v).toFixed(1)}</text>}
                       </g>
                     ))}
                     {isFocus&&pts.length>0&&(
@@ -974,7 +996,7 @@ function SettingsScreen({ settings, onSave }) {
           {[["持ち点","startPoints","開始時の点数"],["返し点","returnPoints","精算基準点"]].map(([label,key,sub])=>(
             <div key={key} className="setting-row">
               <div><div className="setting-label">{label}</div><div style={{fontSize:11,color:"var(--muted)"}}>{sub}</div></div>
-              <input className="setting-input" type="number" value={s[mode][key]} onFocus={e=>e.target.select()} onChange={e=>update(mode,key,parseInt(e.target.value)||0)}/>
+              <input className="setting-input" type="number" value={s[mode][key]} onFocus={e=>e.target.select()} onChange={e=>update(mode,key,e.target.value===''?'':Number(e.target.value))} onBlur={e=>update(mode,key,parseInt(e.target.value)||0)}/>
             </div>
           ))}
           <div style={{paddingTop:12}}>
