@@ -542,7 +542,6 @@ function GameScreen({ gs, onFinish }) {
         )}
       </div>
 
-      {/* 思い出メモ欄 */}
       <div style={{background:"var(--surface)",border:"1px solid rgba(179,136,255,.3)",borderRadius:"var(--radius)",padding:"10px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
           <span style={{fontSize:15}}>📝</span>
@@ -684,7 +683,7 @@ function EditGameScreen({ game, onSave, onCancel }) {
   const sorted = [...game.results].sort((a,b)=>a.origIdx-b.origIdx);
   const [names, setNames] = useState(sorted.map(r=>r.name));
   // 1000点単位で入力（例: 38600点 → 38.6と入力）
-  const [rawPoints, setRawPoints] = useState(sorted.map(r=>String(r.points/1000)));
+  const [rawPoints, setRawPoints] = useState(sorted.map(r=>String((r.rawPoints||0)/1000)));
   const [date, setDate] = useState(game.date.slice(0,10));
   const { settings:s } = game;
   const pc = s.playerCount;
@@ -738,7 +737,7 @@ function EditGameScreen({ game, onSave, onCancel }) {
               <span className="result-name" style={{fontSize:14}}>{r.name}</span>
               <div className="result-detail">
                 <div className={`result-total ${r.total>=0?"pos":"neg"}`} style={{fontSize:18}}>{formatPt(r.total,true)}</div>
-                <div className="result-breakdown">{r.points.toLocaleString()}点 / ウマ{r.uma>=0?"+":""}{r.uma}</div>
+                <div className="result-breakdown">{(r.rawPoints||0).toLocaleString()}点 / ウマ{r.uma>=0?"+":""}{r.uma}</div>
               </div>
             </div>
           ))}
@@ -813,7 +812,6 @@ function ScoresScreen({ games, year, setYear, scrollTarget, clearScrollTarget })
   );
 }
 
-// ── ドット形状ヘルパー（案γ）────────────────────────────────────
 function GraphDot({ shape, cx, cy, r=5, fill }) {
   switch(shape) {
     case "square":
@@ -827,7 +825,6 @@ function GraphDot({ shape, cx, cy, r=5, fill }) {
   }
 }
 
-// ── 凡例アイコン（案γ）──────────────────────────────────────────
 function ShapeIcon({ shape, color, size=7 }) {
   const s = size;
   switch(shape) {
@@ -966,7 +963,6 @@ function StatsScreen({ games, year, setYear }) {
           </div>
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:"5px 10px",marginTop:10}}>
-          {/* 全員ボタン */}
           <button onClick={()=>setActivePlayer(null)}
             style={{display:"flex",alignItems:"center",gap:5,border:`1px solid ${activePlayer===null?"rgba(255,255,255,.4)":"transparent"}`,cursor:"pointer",padding:"3px 7px",borderRadius:6,background:activePlayer===null?"rgba(255,255,255,.1)":"transparent",transition:"all 0.15s"}}>
             <span style={{fontSize:11,color:activePlayer===null?"var(--text)":"var(--muted)",fontWeight:700}}>全員</span>
