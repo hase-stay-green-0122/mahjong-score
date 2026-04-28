@@ -420,9 +420,9 @@ function TableSetup({ tableIdx, mode, setMode, players, setPlayers, usedNames, s
         <div className="card-title" style={{margin:0,color:TABLE_COLORS[tableIdx]?.color||"var(--muted)"}}>{tableIdx+1}卓目</div>
         <div className="mode-tabs" style={{gap:6}}>
           <button className={`mode-tab ${mode===MODES.FOUR?"active":""}`} style={{padding:"5px 12px",fontSize:13}}
-            onClick={()=>{setMode(MODES.FOUR);setPlayers(["","","",""]);}>四麻</button>
+            onClick={()=>{setMode(MODES.FOUR);setPlayers(["","","",""]);}}>四麻</button>
           <button className={`mode-tab ${mode===MODES.THREE?"active":""}`} style={{padding:"5px 12px",fontSize:13}}
-            onClick={()=>{setMode(MODES.THREE);setPlayers(["","",""]);}>三麻</button>
+            onClick={()=>{setMode(MODES.THREE);setPlayers(["","",""]);}}>三麻</button>
         </div>
       </div>
       {Array.from({length:cnt}).map((_,i)=>(
@@ -444,41 +444,22 @@ function TableSetup({ tableIdx, mode, setMode, players, setPlayers, usedNames, s
 }
 
 function SetupScreen({ settings, onStart }) {
-  const [tableCount, setTableCount] = useState(1);
-  const [tableModes, setTableModes] = useState([MODES.FOUR,MODES.FOUR,MODES.FOUR,MODES.FOUR]);
-  const [tablePlayers, setTablePlayers] = useState([["","","",""],["","","",""],["","","",""],["","","",""]]);
-  const setMode = (ti,m) => setTableModes(prev=>prev.map((x,i)=>i===ti?m:x));
-  const setPlayers = (ti,upd) => setTablePlayers(prev=>prev.map((p,i)=>i===ti?(typeof upd==="function"?upd(p):upd):p));
-  const getUsed = ex => {
-    const used=[];
-    for(let t=0;t<tableCount;t++){
-      if(t===ex)continue;
-      tablePlayers[t].slice(0,tableModes[t]===MODES.FOUR?4:3).forEach(p=>{if(p)used.push(p);});
-    }
-    return used;
+  const [mode, setMode] = useState(MODES.FOUR);
+  const [players, setPlayers] = useState(["","","",""]);
+  const cnt = mode===MODES.FOUR?4:3;
+  const setPlayer = (i,val) => setPlayers(prev=>{const n=[...prev];n[i]=val;return n;});
+  const getOptions = si => {
+    const others = players.filter((_,i)=>i!==si);
+    return MEMBER_LIST.filter(m=>!others.includes(m));
   };
-  const canStart = Array.from({length:tableCount}).every((_,t)=>{
-    const cnt=tableModes[t]===MODES.FOUR?4:3;
-    return tablePlayers[t].slice(0,cnt).every(p=>p!=="");
-  });
-  const handleStart = () => onStart(Array.from({length:tableCount}).map((_,t)=>{
-    const m=tableModes[t]; const cnt=m===MODES.FOUR?4:3;
-    return {mode:m, players:tablePlayers[t].slice(0,cnt).map((n,i)=>n||`${t+1}卓P${i+1}`)};
-  }));
+  const canStart = players.slice(0,cnt).every(p=>p!=="");
+  const handleStart = () => onStart([{mode, players:players.slice(0,cnt)}]);
   return (
     <div className="screen animate-in">
-      <div className="card">
-        <div className="card-title">卓数</div>
-        <select style={{...selectStyle,fontSize:17,fontWeight:700,padding:"10px 14px"}} value={tableCount} onChange={e=>setTableCount(Number(e.target.value))}>
-          {[1,2,3,4].map(n=><option key={n} value={n}>{n}卓</option>)}
-        </select>
-      </div>
-      {Array.from({length:tableCount}).map((_,t)=>(
-        <TableSetup key={t} tableIdx={t} mode={tableModes[t]} setMode={m=>setMode(t,m)}
-          players={tablePlayers[t]} setPlayers={upd=>setPlayers(t,upd)} usedNames={getUsed(t)} settings={settings}/>
-      ))}
+      <TableSetup tableIdx={0} mode={mode} setMode={m=>{setMode(m);setPlayers(["","","",""]);}}
+        players={players} setPlayers={setPlayers} usedNames={[]} settings={settings}/>
       <button className="btn btn-primary" onClick={handleStart} disabled={!canStart} style={{opacity:canStart?1:0.5}}>
-        {tableCount>1?`${tableCount}卓同時開始`:"対局開始"}
+        対局開始
       </button>
       {!canStart&&<div style={{textAlign:"center",fontSize:12,color:"var(--muted)",marginTop:-8}}>全プレイヤーを選択してください</div>}
     </div>
@@ -486,40 +467,30 @@ function SetupScreen({ settings, onStart }) {
 }
 
 function GameScreen({ gs, setGs, onFinish }) {
-  const [inputMode, setInputMode] = useState(false);
   const [tmp, setTmp] = useState(gs.players.map(p=>String(p.points)));
+  const [showError, setShowError] = useState(false);
 
-  const parsedTmp = tmp.map(v=>parseInt(v.replace(/,/g,""),10)||0);
-  const currentPoints = inputMode ? parsedTmp : gs.players.map(p=>p.points);
-  const total = currentPoints.reduce((s,v)=>s+v,0);
+  const parsedTmp = tmp.map(v=>parseInt(String(v).replace(/,/g,""),10)||0);
+  const total = parsedTmp.reduce((s,v)=>s+v,0);
   const expected = gs.settings.startPoints * gs.settings.playerCount;
   const diff = total - expected;
 
-  const updatePoints = () => {
-    setGs(prev=>({...prev,players:prev.players.map((p,i)=>({...p,points:parsedTmp[i]}))}));
-    setInputMode(false);
-  };
+  const sorted = [...parsedTmp.map((pts,i)=>({...gs.players[i],points:pts}))].sort((a,b)=>b.points-a.points);
 
   const handleFinish = () => {
-    // 入力中なら先に確定してから終了
-    if (inputMode) {
-      setGs(prev=>({...prev,players:prev.players.map((p,i)=>({...p,points:parsedTmp[i]}))}));
-      setInputMode(false);
+    if (diff !== 0) {
+      // 合計不一致：エラー表示して編集継続
+      setShowError(true);
+      return;
     }
+    setShowError(false);
     onFinish({...gs, players: gs.players.map((p,i)=>({...p,points:parsedTmp[i]}))});
   };
 
-  const sorted = [...currentPoints.map((pts,i)=>({...gs.players[i],points:pts}))].sort((a,b)=>b.points-a.points);
   return (
     <div className="screen animate-in">
       <div className="card">
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div className="card-title" style={{margin:0}}>素点入力</div>
-          <button className={`btn btn-sm ${inputMode?"btn-primary":"btn-secondary"}`} style={{padding:"6px 14px"}}
-            onClick={()=>{ inputMode?updatePoints():(setTmp(gs.players.map(p=>String(p.points))),setInputMode(true)); }}>
-            {inputMode?"✓ 確定":"✏ 入力"}
-          </button>
-        </div>
+        <div className="card-title" style={{marginBottom:12}}>素点入力</div>
         <div className="score-grid">
           {gs.players.map((p,i)=>{
             const rank=sorted.findIndex(s=>s.id===p.id)+1;
@@ -527,9 +498,8 @@ function GameScreen({ gs, setGs, onFinish }) {
               <div key={p.id} className={`score-row ${rank===1?"top":""}`}>
                 <div className="player-badge" style={{background:PLAYER_COLORS[i].bg,color:PLAYER_COLORS[i].color,width:28,height:28,fontSize:11}}>{rank}位</div>
                 <span className="score-name">{p.name}</span>
-                {inputMode
-                  ? <input className="score-input-field" type="number" value={tmp[i]} onFocus={e=>e.target.select()} onChange={e=>{const t=[...tmp];t[i]=e.target.value;setTmp(t);}}/>
-                  : <span className="score-pts" style={{color:PLAYER_COLORS[i].color}}>{gs.players[i].points.toLocaleString()}</span>}
+                <input className="score-input-field" type="number" value={tmp[i]} onFocus={e=>e.target.select()}
+                  onChange={e=>{const t=[...tmp];t[i]=e.target.value;setTmp(t);setShowError(false);}}/>
               </div>
             );
           })}
@@ -540,15 +510,23 @@ function GameScreen({ gs, setGs, onFinish }) {
             {total.toLocaleString()} {diff!==0&&<span style={{fontSize:13}}>({diff>0?"+":""}{diff})</span>}
           </span>
         </div>
-        {diff!==0&&<div style={{fontSize:12,color:"var(--red)",marginTop:6,textAlign:"center"}}>
-          ⚠ 合計が{(gs.settings.startPoints*gs.settings.playerCount).toLocaleString()}点と一致していません
-        </div>}
+        {showError && diff!==0 && (
+          <div style={{marginTop:10,padding:"10px 12px",background:"rgba(224,92,122,.12)",border:"1px solid rgba(224,92,122,.4)",borderRadius:8}}>
+            <div style={{fontSize:13,color:"var(--red)",fontWeight:700,marginBottom:4}}>⚠ 合計が{expected.toLocaleString()}点になっていません</div>
+            <div style={{fontSize:12,color:"var(--muted)"}}>
+              現在 <b style={{color:"var(--red)"}}>{total.toLocaleString()}点</b>（{diff>0?"+":""}{diff}点）
+              — 各自のスコアを確認してください
+            </div>
+          </div>
+        )}
       </div>
       <button className="btn btn-primary"
-        style={{background: diff===0 ? "linear-gradient(135deg,#6d28d9,#a855f7)" : "var(--surface2)", color: diff===0 ? "#fff" : "var(--muted)", cursor: diff===0 ? "pointer" : "not-allowed", opacity: diff===0 ? 1 : 0.6}}
-        disabled={diff!==0}
+        style={{background: diff===0 ? "linear-gradient(135deg,#6d28d9,#a855f7)" : "var(--surface2)",
+                color: diff===0 ? "#fff" : "var(--muted)",
+                cursor: "pointer",
+                opacity: diff===0 ? 1 : 0.7}}
         onClick={handleFinish}>
-        🏁 終了・集計{diff!==0 && "（合計点が合いません）"}
+        {diff===0 ? "🏁 終了・集計" : `⚠ 合計が合いません（${diff>0?"+":""}${diff}）`}
       </button>
     </div>
   );
