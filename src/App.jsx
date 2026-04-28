@@ -553,30 +553,34 @@ function ResultScreen({ gs, onHome, tables, activeIdx, setActiveIdx, setView }) 
         <div className="card-title">最終結果 — {gs.mode==="4"?"四麻":"三麻"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {results.map((r,i)=>(
-            <div key={r.origIdx} className={`result-row ${r.rank===1?"rank1":""}`}>
-              <span className={`rank-num ${rc[i]}`}>{r.rank}</span>
-              <div className="player-badge" style={{background:PLAYER_COLORS[r.origIdx].bg,color:PLAYER_COLORS[r.origIdx].color,width:30,height:30,fontSize:11}}>{WINDS[r.origIdx]}</div>
-              <span className="result-name">{r.name}</span>
-              <div className="result-detail">
-                <div className={`result-total ${r.total>=0?"pos":"neg"}`}>{formatPt(r.total,true)}</div>
-                <div className="result-breakdown">
-                  素点{r.rawPoints.toLocaleString()} / 生点{formatPt(r.raw,true)} / ウマ{r.uma>0?"+":""}{r.uma}
+            <div key={r.origIdx} className={`result-row ${r.rank===1?"rank1":""}`} style={{alignItems:"flex-start"}}>
+              <span className={`rank-num ${rc[i]}`} style={{paddingTop:4}}>{r.rank}</span>
+              <div className="player-badge" style={{background:PLAYER_COLORS[r.origIdx].bg,color:PLAYER_COLORS[r.origIdx].color,width:30,height:30,fontSize:11,marginTop:4,flexShrink:0}}>{WINDS[r.origIdx]}</div>
+              <div style={{flex:1}}>
+                <div className="result-name" style={{marginBottom:6}}>{r.name}</div>
+                {/* 内訳：縦並び */}
+                <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--muted)"}}>
+                    <span>素点</span>
+                    <span>{r.rawPoints.toLocaleString()}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--muted)"}}>
+                    <span>{(gs.settings.returnPoints/1000).toFixed(0)}千点返し</span>
+                    <span style={{color:r.raw>=0?"var(--green)":"var(--red)"}}>{formatPt(r.raw,true)}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--muted)"}}>
+                    <span>ウマ</span>
+                    <span style={{color:r.uma>0?"var(--green)":r.uma<0?"var(--red)":"var(--muted)"}}>{r.uma>0?"+":""}{r.uma}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:900,borderTop:`1px solid var(--border)`,marginTop:3,paddingTop:4}}>
+                    <span style={{color:"var(--muted)"}}>合計</span>
+                    <span style={{color:r.total>=0?"var(--green)":"var(--red)"}}>{formatPt(r.total,true)}</span>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
         </div>
-      </div>
-      <div className="card">
-        <div className="card-title">内訳</div>
-        {results.map(r=>(
-          <div key={r.origIdx} className="stat-row">
-            <span>{r.rank}位 {r.name}</span>
-            <span style={{fontSize:12,color:"var(--muted)"}}>
-              {r.rawPoints.toLocaleString()} → 生点{formatPt(r.raw,true)} ウマ{r.uma>0?"+":""}{r.uma} = <b style={{color:r.total>=0?"var(--green)":"var(--red)"}}>{formatPt(r.total,true)}</b>
-            </span>
-          </div>
-        ))}
       </div>
       {others.length>0&&(
         <div className="card">
