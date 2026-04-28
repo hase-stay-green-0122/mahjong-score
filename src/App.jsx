@@ -32,7 +32,11 @@ const TABLE_COLORS = [
   { color:"#78d2aa", border:"rgba(120,210,170,0.4)" },
   { color:"#e6648c", border:"rgba(230,100,140,0.4)" },
 ];
-const GRAPH_COLORS = ["#b388ff","#64a0f0","#78d2aa","#e6648c","#ffb347","#7ce8e8","#ff8fab","#b5e48c"];
+const GRAPH_COLORS = [
+  "#ff4d4d","#ff9933","#ffdd00","#66cc44","#00cc88","#00cccc",
+  "#0099ff","#6655ff","#cc44cc","#ff44aa","#aaaaaa","#ffffff",
+];
+const GRAPH_SHAPES = ["circle","square","triangle","diamond"];
 const RANK_MEDALS = ["🥇","🥈","🥉"];
 const WINDS = ["東","南","西","北"];
 
@@ -81,14 +85,14 @@ const css = `
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0e0b14;--surface:#1a1525;--surface2:#231c32;--border:#362a4a;--accent:#b388ff;--accent2:#d0aaff;--red:#e05c7a;--blue:#7c9ee0;--green:#7cc8a0;--text:#ede8f8;--muted:#8878a8;--radius:12px;--font:'Meiryo UI','メイリオ',Meiryo,sans-serif}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font)}
-#root{min-height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
+#root{min-height:100vh;display:flex;flex-direction:column;width:100%;max-width:480px;margin:0 auto;position:relative}
 h1,h2,h3{font-family:var(--font)}
 .app-header{background:linear-gradient(135deg,#1a1525 0%,#0e0b14 100%);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 .app-header h1{font-size:18px;font-weight:900;letter-spacing:2px;color:var(--accent)}
 .back-btn{background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:4px 8px}
 .action-btn{background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;font-family:inherit;font-weight:700;letter-spacing:1px}
 .screen{flex:1;padding:16px;display:flex;flex-direction:column;gap:16px;padding-bottom:80px}
-.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:100}
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
 .nav-btn{flex:1;padding:12px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;border-top:2px solid transparent;cursor:pointer;color:var(--muted);font-family:inherit;font-size:10px;letter-spacing:.5px;transition:all .15s}
 .nav-btn.active{color:var(--accent);border-top-color:var(--accent);background:rgba(179,136,255,.07)}
 .nav-btn.active .icon{transform:scale(1.15)}
@@ -194,7 +198,7 @@ input[type=number]{-moz-appearance:textfield}
 .animate-in{animation:fadeUp .25s ease both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;align-items:flex-end;justify-content:center}
-.modal-sheet{background:var(--surface);border-radius:16px 16px 0 0;padding:24px 20px 40px;width:100%;max-width:480px;display:flex;flex-direction:column;gap:12px}
+.modal-sheet{background:var(--surface);border-radius:16px 16px 0 0;padding:24px 20px 40px;padding-bottom:calc(40px + env(safe-area-inset-bottom));width:100%;max-width:480px;display:flex;flex-direction:column;gap:12px}
 .modal-title{font-size:18px;font-weight:900;margin-bottom:4px}
 .modal-sub{font-size:13px;color:var(--muted);margin-bottom:8px}
 `;
@@ -740,6 +744,35 @@ function ScoresScreen({ games, year, setYear }) {
   );
 }
 
+// ── ドット形状ヘルパー（案γ）────────────────────────────────────
+function GraphDot({ shape, cx, cy, r=5, fill }) {
+  switch(shape) {
+    case "square":
+      return <rect x={cx-r*.85} y={cy-r*.85} width={r*1.7} height={r*1.7} rx="1.5" fill={fill} stroke="var(--bg)" strokeWidth="1.5"/>;
+    case "triangle":
+      return <polygon points={`${cx},${cy-r} ${cx+r*.9},${cy+r*.65} ${cx-r*.9},${cy+r*.65}`} fill={fill} stroke="var(--bg)" strokeWidth="1.5"/>;
+    case "diamond":
+      return <polygon points={`${cx},${cy-r} ${cx+r},${cy} ${cx},${cy+r} ${cx-r},${cy}`} fill={fill} stroke="var(--bg)" strokeWidth="1.5"/>;
+    default:
+      return <circle cx={cx} cy={cy} r={r} fill={fill} stroke="var(--bg)" strokeWidth="1.5"/>;
+  }
+}
+
+// ── 凡例アイコン（案γ）──────────────────────────────────────────
+function ShapeIcon({ shape, color, size=7 }) {
+  const s = size;
+  switch(shape) {
+    case "square":
+      return <svg width={s*2} height={s*2} style={{flexShrink:0}}><rect x={s*.15} y={s*.15} width={s*1.7} height={s*1.7} rx="1.2" fill={color} stroke="var(--bg)" strokeWidth="1.2"/></svg>;
+    case "triangle":
+      return <svg width={s*2} height={s*2} style={{flexShrink:0}}><polygon points={`${s},${s*.1} ${s*1.9},${s*1.9} ${s*.1},${s*1.9}`} fill={color} stroke="var(--bg)" strokeWidth="1.2"/></svg>;
+    case "diamond":
+      return <svg width={s*2} height={s*2} style={{flexShrink:0}}><polygon points={`${s},${s*.1} ${s*1.9},${s} ${s},${s*1.9} ${s*.1},${s}`} fill={color} stroke="var(--bg)" strokeWidth="1.2"/></svg>;
+    default:
+      return <svg width={s*2} height={s*2} style={{flexShrink:0}}><circle cx={s} cy={s} r={s*.75} fill={color} stroke="var(--bg)" strokeWidth="1.2"/></svg>;
+  }
+}
+
 function StatsScreen({ games, year, setYear }) {
   const [activePlayer, setActivePlayer] = useState(null);
   const yearGames = games.filter(g=>new Date(g.date).getFullYear()===year).sort((a,b)=>new Date(a.date)-new Date(b.date));
@@ -751,10 +784,19 @@ function StatsScreen({ games, year, setYear }) {
     p.cumScore+=r.total; p.games++;
     p.entries.push({gameIdx:yearGames.indexOf(g),cumScore:p.cumScore});
   }));
-  const players = Object.values(playerMap).map((p,ci)=>({
-    ...p, color:GRAPH_COLORS[ci%GRAPH_COLORS.length], totalScore:p.cumScore,
-    cumScores:yearGames.map((_,gi)=>{const e=p.entries.find(e=>e.gameIdx===gi);return e?e.cumScore:null;}),
-  })).sort((a,b)=>b.totalScore-a.totalScore);
+
+  // MEMBER_LIST の順番で色・形状を固定割り当て（対局がない回があっても色がズレない）
+  const players = Object.values(playerMap).map(p=>{
+    const mi = MEMBER_LIST.indexOf(p.name);
+    const ci = mi >= 0 ? mi : 0;
+    return {
+      ...p,
+      color: GRAPH_COLORS[ci % GRAPH_COLORS.length],
+      shape: GRAPH_SHAPES[ci % GRAPH_SHAPES.length],
+      totalScore: p.cumScore,
+      cumScores: yearGames.map((_,gi)=>{const e=p.entries.find(e=>e.gameIdx===gi);return e?e.cumScore:null;}),
+    };
+  }).sort((a,b)=>b.totalScore-a.totalScore);
 
   const allScores = players.flatMap(p=>p.cumScores.filter(v=>v!==null));
   const scoreMin = Math.min(0,...allScores||[0]);
@@ -794,7 +836,8 @@ function StatsScreen({ games, year, setYear }) {
             {players.map((p,pi)=>(
               <tr key={p.name} style={{borderBottom:"1px solid var(--border)",background:pi%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
                 <td style={{padding:"8px 10px",fontWeight:700,whiteSpace:"nowrap",position:"sticky",left:0,background:"var(--surface)",zIndex:1}}>
-                  <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:p.color,marginRight:6}}/>{p.name}
+                  <ShapeIcon shape={p.shape} color={p.color} size={6}/>
+                  <span style={{marginLeft:5}}>{p.name}</span>
                 </td>
                 <td style={{padding:"8px 6px",textAlign:"center",fontWeight:900,fontSize:13,color:p.totalScore>0?"var(--green)":p.totalScore<0?"var(--red)":"var(--muted)",borderRight:"1px solid var(--border)"}}>
                   {formatPt(p.totalScore,true)}
@@ -830,32 +873,40 @@ function StatsScreen({ games, year, setYear }) {
               <line x1={0} y1={H-PAD_BTM} x2={W+12} y2={H-PAD_BTM} stroke="rgba(255,255,255,0.15)" strokeWidth="1"/>
               {players.map(p=>{
                 const pts=p.cumScores.map((v,i)=>v!==null?{x:toX(i),y:toY(v),v}:null).filter(Boolean);
-                const isActive=!activePlayer||activePlayer===p.name;
+                const isFocus=activePlayer===p.name;
+                const isActive=!activePlayer||isFocus;
                 return (
-                  <g key={p.name} opacity={isActive?1:0.15} style={{transition:"opacity 0.2s"}}>
-                    {pts.length>1&&<polyline points={pts.map(pt=>`${pt.x},${pt.y}`).join(" ")} fill="none" stroke={p.color} strokeWidth={activePlayer===p.name?3:2} strokeLinejoin="round" strokeLinecap="round"/>}
+                  <g key={p.name} opacity={isActive?1:0.1} style={{transition:"opacity 0.2s"}}>
+                    {pts.length>1&&<polyline points={pts.map(pt=>`${pt.x},${pt.y}`).join(" ")} fill="none" stroke={p.color} strokeWidth={isFocus?2.5:1.5} strokeLinejoin="round" strokeLinecap="round"/>}
                     {pts.map((pt,i)=>(
                       <g key={i}>
-                        <circle cx={pt.x} cy={pt.y} r="4" fill={p.color} stroke="var(--bg)" strokeWidth="1.5"/>
-                        {activePlayer===p.name&&<text x={pt.x} y={pt.y-8} textAnchor="middle" fontSize="9" fill={p.color} fontFamily="var(--font)" fontWeight="700">{pt.v>=0?`+${pt.v}`:pt.v}</text>}
+                        <GraphDot shape={p.shape} cx={pt.x} cy={pt.y} r={5} fill={p.color}/>
+                        {isFocus&&<text x={pt.x} y={pt.y-10} textAnchor="middle" fontSize="9" fill={p.color} fontFamily="var(--font)" fontWeight="700">{pt.v>=0?`+${pt.v}`:pt.v}</text>}
                       </g>
                     ))}
+                    {isFocus&&pts.length>0&&(
+                      <text x={pts[pts.length-1].x+8} y={pts[pts.length-1].y+4} fontSize="10" fill={p.color} fontFamily="var(--font)" fontWeight="900">{p.name}</text>
+                    )}
                   </g>
                 );
               })}
             </svg>
           </div>
         </div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:"6px 12px",marginTop:10}}>
-          {players.map(p=>(
-            <button key={p.name} onClick={()=>setActivePlayer(activePlayer===p.name?null:p.name)}
-              style={{display:"flex",alignItems:"center",gap:5,border:"none",cursor:"pointer",padding:"3px 8px",borderRadius:6,background:activePlayer===p.name?`${p.color}22`:"transparent",transition:"all 0.15s"}}>
-              <span style={{width:16,height:3,borderRadius:2,background:p.color,display:"inline-block"}}/>
-              <span style={{fontSize:11,color:activePlayer&&activePlayer!==p.name?"var(--muted)":p.color,fontWeight:700}}>{p.name}</span>
-            </button>
-          ))}
+        <div style={{display:"flex",flexWrap:"wrap",gap:"5px 10px",marginTop:10}}>
+          {players.map(p=>{
+            const isFocus=activePlayer===p.name;
+            const isDim=activePlayer&&!isFocus;
+            return (
+              <button key={p.name} onClick={()=>setActivePlayer(isFocus?null:p.name)}
+                style={{display:"flex",alignItems:"center",gap:5,border:`1px solid ${isFocus?"rgba(255,255,255,.2)":"transparent"}`,cursor:"pointer",padding:"3px 7px",borderRadius:6,background:isFocus?"rgba(255,255,255,.06)":"transparent",transition:"all 0.15s",opacity:isDim?.22:1}}>
+                <ShapeIcon shape={p.shape} color={p.color} size={7}/>
+                <span style={{fontSize:11,color:p.color,fontWeight:700}}>{p.name}</span>
+              </button>
+            );
+          })}
         </div>
-        <div style={{fontSize:10,color:"var(--muted)",marginTop:6,textAlign:"right"}}>← 横スクロールで全期間を確認</div>
+        <div style={{fontSize:10,color:"var(--muted)",marginTop:6,textAlign:"right"}}>← 横スクロールで全期間を確認　　凡例タップで絞り込み</div>
       </div>
     </div>
   );

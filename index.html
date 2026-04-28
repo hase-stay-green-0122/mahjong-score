@@ -1,13 +1,22 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>mahjong-score</title>
+
+    <!-- ★ スマホ対応の核心：これがないとPCサイト縮小表示になる -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- iPhone ホーム画面追加時のアイコン・テーマ設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#0e0b14" />
+
+    <title>🀄 麻雀格闘倶楽部</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🀄</text></svg>" />
   </head>
   <body>
     <div id="root"></div>
+    <!-- Vite の場合 -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
