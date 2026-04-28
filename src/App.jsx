@@ -15,8 +15,8 @@ const saveData = (data) => setDoc(DATA_DOC, data).catch(e => console.error("保�
 
 const MODES = { FOUR:"4", THREE:"3" };
 const DEFAULT_SETTINGS = {
-  "4":{ mode:"4", label:"四麻", playerCount:4, startPoints:25000, returnPoints:30000, uma:[0,0,0,0] },
-  "3":{ mode:"3", label:"三麻", playerCount:3, startPoints:35000, returnPoints:40000, uma:[0,0,0] },
+  "4":{ mode:"4", label:"四麻", playerCount:4, startPoints:25000, returnPoints:30000, uma:[20,10,-10,-20] },
+  "3":{ mode:"3", label:"三麻", playerCount:3, startPoints:35000, returnPoints:40000, uma:[20,0,-20] },
 };
 const VIEWS = { HOME:"home", SETUP:"setup", GAME:"game", RESULT:"result", HISTORY:"history", EDIT:"edit", STATS:"stats", SCORES:"scores", SETTINGS:"settings" };
 const PLAYER_COLORS = [
