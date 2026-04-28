@@ -805,7 +805,7 @@ function StatsScreen({ games, year, setYear }) {
     </div>
   );
 
-  const PAD_TOP=12, PAD_BTM=28, H=320, PLOT_H=H-PAD_TOP-PAD_BTM;
+  const PAD_TOP=12, PAD_BTM=28, H=800, PLOT_H=H-PAD_TOP-PAD_BTM;
   const range=scoreMax-scoreMin||1;
   const step=Math.max(1,Math.ceil((range/4)/10)*10);
   const yStart=Math.floor(scoreMin/step)*step;
@@ -890,6 +890,11 @@ function StatsScreen({ games, year, setYear }) {
           </div>
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:"5px 10px",marginTop:10}}>
+          {/* 全員ボタン */}
+          <button onClick={()=>setActivePlayer(null)}
+            style={{display:"flex",alignItems:"center",gap:5,border:`1px solid ${activePlayer===null?"rgba(255,255,255,.4)":"transparent"}`,cursor:"pointer",padding:"3px 7px",borderRadius:6,background:activePlayer===null?"rgba(255,255,255,.1)":"transparent",transition:"all 0.15s"}}>
+            <span style={{fontSize:11,color:activePlayer===null?"var(--text)":"var(--muted)",fontWeight:700}}>全員</span>
+          </button>
           {players.map(p=>{
             const isFocus=activePlayer===p.name;
             const isDim=activePlayer&&!isFocus;
