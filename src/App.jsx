@@ -248,7 +248,7 @@ export default function App() {
 
   const finishGame = g => {
     const results = calcFinalScores(g.players, g.settings);
-    persist({ ...data, games:[{ id:g.id, mode:g.mode, date:new Date().toISOString(), settings:g.settings, results }, ...data.games] });
+    persist({ ...data, games:[{ id:g.id, mode:g.mode, date:new Date().toISOString(), settings:g.settings, results, memo:g.memo||"" }, ...data.games] });
     setTables(prev => prev.map((t,i) => i===activeIdx ? {...t,finalResults:results} : t));
     setView(VIEWS.RESULT);
   };
