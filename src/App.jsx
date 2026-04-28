@@ -474,6 +474,7 @@ function GameScreen({ gs, setGs, onFinish }) {
   // 100点単位で入力（例: 25000点 → 250と入力）
   const [tmp, setTmp] = useState(gs.players.map(p=>String(Math.round(p.points/100))));
   const [showError, setShowError] = useState(false);
+  const [memo, setMemo] = useState(gs.memo||"");
 
   // 100倍して実際の点数に戻す
   const parsedTmp = tmp.map(v=>(parseInt(String(v).replace(/,/g,""),10)||0)*100);
@@ -489,7 +490,7 @@ function GameScreen({ gs, setGs, onFinish }) {
       return;
     }
     setShowError(false);
-    onFinish({...gs, players: gs.players.map((p,i)=>({...p,points:parsedTmp[i]}))});
+    onFinish({...gs, memo, players: gs.players.map((p,i)=>({...p,points:parsedTmp[i]}))});
   };
 
   return (
@@ -533,6 +534,24 @@ function GameScreen({ gs, setGs, onFinish }) {
           </div>
         )}
       </div>
+
+      {/* 思い出メモ欄 */}
+      <div style={{background:"var(--surface)",border:"1px solid rgba(179,136,255,.3)",borderRadius:"var(--radius)",padding:"10px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+          <span style={{fontSize:15}}>🏆</span>
+          <span style={{fontSize:12,fontWeight:700,color:"var(--accent)",letterSpacing:1}}>思い出</span>
+          <span style={{fontSize:11,color:"var(--muted)"}}>役満など特別な出来事を記録</span>
+        </div>
+        <textarea
+          value={memo}
+          onChange={e=>setMemo(e.target.value)}
+          placeholder="例：居石さんが国士無双をツモ！"
+          rows={2}
+          style={{width:"100%",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:8,
+            color:"var(--text)",fontFamily:"inherit",fontSize:13,padding:"8px 10px",
+            outline:"none",resize:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+      </div>
+
       <button className="btn btn-primary"
         style={{background: diff===0 ? "linear-gradient(135deg,#6d28d9,#a855f7)" : "var(--surface2)",
                 color: diff===0 ? "#fff" : "var(--muted)",
@@ -584,6 +603,15 @@ function ResultScreen({ gs, onHome, tables, activeIdx, setActiveIdx, setView }) 
           ))}
         </div>
       </div>
+      {gs.memo&&(
+        <div style={{background:"var(--surface)",border:"1px solid rgba(179,136,255,.3)",borderRadius:"var(--radius)",padding:"10px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+            <span style={{fontSize:15}}>🏆</span>
+            <span style={{fontSize:12,fontWeight:700,color:"var(--accent)",letterSpacing:1}}>思い出</span>
+          </div>
+          <div style={{fontSize:13,color:"var(--text)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{gs.memo}</div>
+        </div>
+      )}
       {others.length>0&&(
         <div className="card">
           <div className="card-title">他の卓</div>
@@ -633,6 +661,12 @@ function HistoryScreen({ games, onEdit, onDelete }) {
                 <span className="history-score" style={{color:r.total>=0?"var(--green)":"var(--red)"}}>{formatPt(r.total,true)}</span>
               </div>
             ))}
+            {g.memo&&(
+              <div style={{marginTop:6,paddingTop:6,borderTop:"1px solid var(--border)",display:"flex",alignItems:"flex-start",gap:5}}>
+                <span style={{fontSize:12}}>🏆</span>
+                <span style={{fontSize:12,color:"var(--accent2)",lineHeight:1.5,whiteSpace:"pre-wrap"}}>{g.memo}</span>
+              </div>
+            )}
           </div>
         </div>
       ))}
