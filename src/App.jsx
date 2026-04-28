@@ -1007,6 +1007,15 @@ function SettingsScreen({ settings, onSave, onRecalcSanma }) {
   );
   return (
     <div className="screen animate-in">
+      <div className="card">
+        <div className="card-title" style={{fontSize:13}}>データ管理</div>
+        <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.6}}>
+          三麻のスコア算出ロジックを変更した場合、過去の履歴を新ロジックで再計算できます。
+        </div>
+        <button className="btn btn-secondary" onClick={onRecalcSanma} style={{width:"100%",fontSize:14}}>
+          🔄　三麻の履歴を再計算する
+        </button>
+      </div>
       {[MODES.FOUR,MODES.THREE].map(mode=>(
         <div key={mode} className="card">
           <div className="card-title">{s[mode].label}設定</div>
@@ -1036,15 +1045,6 @@ function SettingsScreen({ settings, onSave, onRecalcSanma }) {
       <button className="btn btn-primary" onClick={handleSave} style={{background:saved?"linear-gradient(135deg,#2d8a4e,#5cc87a)":undefined,transition:"background 0.3s"}}>
         {saved?"✓ 保存しました！":"設定を保存"}
       </button>
-      <div className="card" style={{marginTop:0}}>
-        <div className="card-title" style={{fontSize:13}}>データ管理</div>
-        <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.6}}>
-          三麻のスコア算出ロジックを変更した場合、過去の履歴を新ロジックで再計算できます。
-        </div>
-        <button className="btn btn-secondary" onClick={onRecalcSanma} style={{width:"100%",fontSize:14}}>
-          🔄　三麻の履歴を再計算する
-        </button>
-      </div>
     </div>
   );
 }
