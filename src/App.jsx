@@ -518,7 +518,7 @@ function GameScreen({ gs, onFinish }) {
       {/* 思い出メモ欄 */}
       <div style={{background:"var(--surface)",border:"1px solid rgba(179,136,255,.3)",borderRadius:"var(--radius)",padding:"10px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
-          <span style={{fontSize:15}}>🏆</span>
+          <span style={{fontSize:15}}>📝</span>
           <span style={{fontSize:12,fontWeight:700,color:"var(--accent)",letterSpacing:1}}>思い出</span>
           <span style={{fontSize:11,color:"var(--muted)"}}>役満など特別な出来事を記録</span>
         </div>
@@ -585,7 +585,7 @@ function ResultScreen({ gs, onHome, tables, activeIdx, setActiveIdx, setView }) 
       {gs.memo&&(
         <div style={{background:"var(--surface)",border:"1px solid rgba(179,136,255,.3)",borderRadius:"var(--radius)",padding:"10px 14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-            <span style={{fontSize:15}}>🏆</span>
+            <span style={{fontSize:15}}>📝</span>
             <span style={{fontSize:12,fontWeight:700,color:"var(--accent)",letterSpacing:1}}>思い出</span>
           </div>
           <div style={{fontSize:13,color:"var(--text)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{gs.memo}</div>
@@ -642,7 +642,7 @@ function HistoryScreen({ games, onEdit, onDelete }) {
             ))}
             {g.memo&&(
               <div style={{marginTop:6,paddingTop:6,borderTop:"1px solid var(--border)",display:"flex",alignItems:"flex-start",gap:5}}>
-                <span style={{fontSize:12}}>🏆</span>
+                <span style={{fontSize:12}}>📝</span>
                 <span style={{fontSize:12,color:"var(--accent2)",lineHeight:1.5,whiteSpace:"pre-wrap"}}>{g.memo}</span>
               </div>
             )}
