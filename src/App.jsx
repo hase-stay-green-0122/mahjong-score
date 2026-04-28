@@ -15,7 +15,7 @@ const saveData = (data) => setDoc(DATA_DOC, data).catch(e => console.error("保�
 
 const MODES = { FOUR:"4", THREE:"3" };
 const DEFAULT_SETTINGS = {
-  "4":{ mode:"4", label:"四麻", playerCount:4, startPoints:25000, returnPoints:30000, uma:[20,10,-10,-20] },
+  "4":{ mode:"4", label:"四麻", playerCount:4, startPoints:25000, returnPoints:30000, uma:[10,5,-5,-10] },
   "3":{ mode:"3", label:"三麻", playerCount:3, startPoints:35000, returnPoints:40000, uma:[20,0,-20] },
 };
 const VIEWS = { HOME:"home", SETUP:"setup", GAME:"game", RESULT:"result", HISTORY:"history", EDIT:"edit", STATS:"stats", SCORES:"scores", SETTINGS:"settings" };
@@ -42,12 +42,14 @@ const WINDS = ["東","南","西","北"];
 
 function calcFinalScores(players, settings) {
   const oka = (settings.returnPoints - settings.startPoints) * settings.playerCount;
-  const ranked = [...players].map((p,i)=>({...p,origIdx:i})).sort((a,b)=>b.points-a.points||a.origIdx-b.origIdx);
+  const ranked = [...players].map((p,i)=>({...p,origIdx:i,rawPoints:p.points})).sort((a,b)=>b.points-a.points||a.origIdx-b.origIdx);
   ranked[0].points += oka;
   return ranked.map((p,rank)=>{
-    const raw = (p.points - settings.returnPoints) / 1000;
+    // 五捨六入：小数点以下を切り捨て（0.5は切り捨て、0.6以上は切り上げ）
+    const rawExact = (p.points - settings.returnPoints) / 1000;
+    const raw = Math.floor(rawExact + 0.4); // 五捨六入 = +0.4してfloor = 0.5未満切捨て、0.6以上切上げ
     const uma = settings.uma[rank];
-    return { ...p, rank:rank+1, raw, uma, total:Math.round((raw+uma)*10)/10 };
+    return { ...p, rank:rank+1, rawPoints:p.rawPoints, raw, uma, total:raw+uma };
   });
 }
 function genId() { return Math.random().toString(36).slice(2,9); }
@@ -557,7 +559,9 @@ function ResultScreen({ gs, onHome, tables, activeIdx, setActiveIdx, setView }) 
               <span className="result-name">{r.name}</span>
               <div className="result-detail">
                 <div className={`result-total ${r.total>=0?"pos":"neg"}`}>{formatPt(r.total,true)}</div>
-                <div className="result-breakdown">{r.points.toLocaleString()}点 / ウマ{r.uma>0?"+":""}{r.uma}</div>
+                <div className="result-breakdown">
+                  素点{r.rawPoints.toLocaleString()} / 生点{formatPt(r.raw,true)} / ウマ{r.uma>0?"+":""}{r.uma}
+                </div>
               </div>
             </div>
           ))}
@@ -569,7 +573,7 @@ function ResultScreen({ gs, onHome, tables, activeIdx, setActiveIdx, setView }) 
           <div key={r.origIdx} className="stat-row">
             <span>{r.rank}位 {r.name}</span>
             <span style={{fontSize:12,color:"var(--muted)"}}>
-              生点: {formatPt(r.raw,true)} ウマ: {r.uma>0?"+":""}{r.uma} → <b style={{color:r.total>=0?"var(--green)":"var(--red)"}}>{formatPt(r.total,true)}</b>
+              {r.rawPoints.toLocaleString()} → 生点{formatPt(r.raw,true)} ウマ{r.uma>0?"+":""}{r.uma} = <b style={{color:r.total>=0?"var(--green)":"var(--red)"}}>{formatPt(r.total,true)}</b>
             </span>
           </div>
         ))}
