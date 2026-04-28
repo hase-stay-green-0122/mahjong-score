@@ -267,6 +267,16 @@ export default function App() {
   const deleteGame = id => { persist({ ...data, games:data.games.filter(g=>g.id!==id) }); setModal(null); };
   const updateGame = ug => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); setEditingGame(null); setView(VIEWS.HISTORY); };
   const saveSettings = s => persist({ ...data, settings:s });
+  const recalcAllSanma = () => {
+    const updated = data.games.map(g => {
+      if(g.mode !== MODES.THREE) return g;
+      // rawPointsから再計算（origIdxでソートして元の入力順に戻す）
+      const players = [...g.results].sort((a,b)=>a.origIdx-b.origIdx).map(r=>({id:r.origIdx,name:r.name,points:r.rawPoints}));
+      const results = calcFinalScores(players, g.settings);
+      return { ...g, results };
+    });
+    persist({ ...data, games:updated });
+  };
 
   const confirmFinish = () => {
     setModal({ title:"対局を終了しますか？", sub:"現在の点数で集計します", confirmLabel:"終了して集計", onConfirm:()=>{ setModal(null); finishGame(gs); } });
@@ -337,7 +347,7 @@ export default function App() {
         )}
         {view===VIEWS.STATS && <StatsScreen games={data.games} year={statsYear} setYear={setStatsYear}/>}
         {view===VIEWS.SCORES && <ScoresScreen games={data.games} year={scoresYear} setYear={setScoresYear} scrollTarget={scrollTarget} clearScrollTarget={()=>setScrollTarget(null)}/>}
-        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings}/>}
+        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalcSanma={()=>setModal({title:"三麻履歴を再計算しますか？",sub:"保存済みの全三麻対局のスコアを新ロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllSanma();}})}/>}
         {[VIEWS.HOME,VIEWS.HISTORY,VIEWS.STATS,VIEWS.SCORES,VIEWS.SETTINGS].includes(view) && (
           <nav className="bottom-nav">
             {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
@@ -979,7 +989,7 @@ function StatsScreen({ games, year, setYear }) {
   );
 }
 
-function SettingsScreen({ settings, onSave }) {
+function SettingsScreen({ settings, onSave, onRecalcSanma }) {
   const [s, setS] = useState(()=>JSON.parse(JSON.stringify(settings)));
   const [saved, setSaved] = useState(false);
   const update = (mode,key,val) => setS(prev=>({...prev,[mode]:{...prev[mode],[key]:val}}));
@@ -1026,6 +1036,15 @@ function SettingsScreen({ settings, onSave }) {
       <button className="btn btn-primary" onClick={handleSave} style={{background:saved?"linear-gradient(135deg,#2d8a4e,#5cc87a)":undefined,transition:"background 0.3s"}}>
         {saved?"✓ 保存しました！":"設定を保存"}
       </button>
+      <div className="card" style={{marginTop:0}}>
+        <div className="card-title" style={{fontSize:13}}>データ管理</div>
+        <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.6}}>
+          三麻のスコア算出ロジックを変更した場合、過去の履歴を新ロジックで再計算できます。
+        </div>
+        <button className="btn btn-secondary" onClick={onRecalcSanma} style={{width:"100%",fontSize:14}}>
+          🔄　三麻の履歴を再計算する
+        </button>
+      </div>
     </div>
   );
 }
