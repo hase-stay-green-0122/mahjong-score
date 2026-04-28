@@ -39,6 +39,7 @@ const GRAPH_COLORS = [
 const GRAPH_SHAPES = ["circle","square","triangle","diamond"];
 const RANK_MEDALS = ["🥇","🥈","🥉"];
 const WINDS = ["東","南","西","北"];
+const RANK_CLASSES = ["r1","r2","r3","r4"];
 
 function calcFinalScores(players, settings) {
   const oka = (settings.returnPoints - settings.startPoints) * settings.playerCount;
@@ -180,7 +181,6 @@ h1,h2,h3{font-family:var(--font)}
 .annual-games{font-size:11px;color:var(--muted)}
 .annual-score{font-size:20px;font-weight:900;min-width:64px;text-align:right}
 .annual-score.pos{color:var(--green)}.annual-score.neg{color:var(--red)}.annual-score.zero{color:var(--muted)}
-.annual-year-selector{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .annual-year-label{font-size:18px;font-weight:900;color:var(--accent)}
 .annual-year-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;font-size:18px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;transition:all .12s}
 .annual-year-btn:active{transform:scale(.88);background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -236,7 +236,6 @@ export default function App() {
 
   const persist = useCallback(d => { setData(d); saveData(d); }, []);
   const gs = tables[activeIdx] || null;
-  const setGs = upd => setTables(prev => prev.map((t,i) => i===activeIdx ? (typeof upd==="function" ? upd(t) : upd) : t));
   const goHome = () => { setView(VIEWS.HOME); setTables([]); setActiveIdx(0); };
 
   const startGames = configs => {
@@ -259,18 +258,6 @@ export default function App() {
   const saveSettings = s => persist({ ...data, settings:s });
 
   const confirmFinish = () => {
-    const total = gs.players.reduce((s,p)=>s+p.points,0);
-    const expected = gs.settings.startPoints * gs.settings.playerCount;
-    const diff = total - expected;
-    if (diff !== 0) {
-      setModal({
-        title:"合計点が合いません",
-        sub:`現在の合計：${total.toLocaleString()}点（${diff>0?"+":""}${diff}点）\n素点を確認してください。`,
-        confirmLabel:"閉じる",
-        onConfirm:()=>setModal(null),
-      });
-      return;
-    }
     setModal({ title:"対局を終了しますか？", sub:"現在の点数で集計します", confirmLabel:"終了して集計", onConfirm:()=>{ setModal(null); finishGame(gs); } });
   };
 
@@ -321,7 +308,7 @@ export default function App() {
                 ))}
               </div>
             )}
-            <GameScreen gs={gs} setGs={setGs} onFinish={finishGame}/>
+            <GameScreen gs={gs} onFinish={finishGame}/>
           </>
         )}
         {view===VIEWS.RESULT && gs?.finalResults && (
@@ -382,9 +369,7 @@ function HomeScreen({ onStart, games }) {
       </div>
       <button className="btn btn-primary" style={{fontSize:17,padding:17,letterSpacing:2}} onClick={onStart}>＋ 新規対局を開始</button>
       <div className="card">
-        <div className="annual-year-selector">
-          <YearSelector year={year} setYear={setYear} games={games}/>
-        </div>
+        <YearSelector year={year} setYear={setYear} games={games}/>
         {ranking.length===0
           ? <div style={{textAlign:"center",padding:"20px 0",color:"var(--muted)",fontSize:13}}>{year}年の対局データがありません</div>
           : <>
@@ -451,11 +436,6 @@ function SetupScreen({ settings, onStart }) {
   const [mode, setMode] = useState(MODES.FOUR);
   const [players, setPlayers] = useState(["","","",""]);
   const cnt = mode===MODES.FOUR?4:3;
-  const setPlayer = (i,val) => setPlayers(prev=>{const n=[...prev];n[i]=val;return n;});
-  const getOptions = si => {
-    const others = players.filter((_,i)=>i!==si);
-    return MEMBER_LIST.filter(m=>!others.includes(m));
-  };
   const canStart = players.slice(0,cnt).every(p=>p!=="");
   const handleStart = () => onStart([{mode, players:players.slice(0,cnt)}]);
   return (
@@ -470,7 +450,7 @@ function SetupScreen({ settings, onStart }) {
   );
 }
 
-function GameScreen({ gs, setGs, onFinish }) {
+function GameScreen({ gs, onFinish }) {
   // 100点単位で入力（例: 25000点 → 250と入力）
   const [tmp, setTmp] = useState(gs.players.map(p=>String(Math.round(p.points/100))));
   const [showError, setShowError] = useState(false);
@@ -566,16 +546,15 @@ function GameScreen({ gs, setGs, onFinish }) {
 
 function ResultScreen({ gs, onHome, tables, activeIdx, setActiveIdx, setView }) {
   const results = gs.finalResults;
-  const rc = ["r1","r2","r3","r4"];
   const others = tables.filter((_,i)=>i!==activeIdx);
   return (
     <div className="screen animate-in">
       <div className="card">
-        <div className="card-title">最終結果 — {gs.mode==="4"?"四麻":"三麻"}</div>
+        <div className="card-title">最終結果 — {gs.mode===MODES.FOUR?"四麻":"三麻"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {results.map((r,i)=>(
             <div key={r.origIdx} className={`result-row ${r.rank===1?"rank1":""}`} style={{alignItems:"flex-start"}}>
-              <span className={`rank-num ${rc[i]}`} style={{paddingTop:4}}>{r.rank}</span>
+              <span className={`rank-num ${RANK_CLASSES[i]}`} style={{paddingTop:4}}>{r.rank}</span>
               <div className="player-badge" style={{background:PLAYER_COLORS[r.origIdx].bg,color:PLAYER_COLORS[r.origIdx].color,width:30,height:30,fontSize:11,marginTop:4,flexShrink:0}}>{WINDS[r.origIdx]}</div>
               <div style={{flex:1}}>
                 <div className="result-name" style={{marginBottom:6}}>{r.name}</div>
@@ -644,7 +623,7 @@ function HistoryScreen({ games, onEdit, onDelete }) {
         <div key={g.id} className="history-card">
           <div className="history-header">
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <span className={`chip ${g.mode==="4"?"mode4":"mode3"}`}>{g.mode==="4"?"四麻":"三麻"}</span>
+              <span className={`chip ${g.mode===MODES.FOUR?"mode4":"mode3"}`}>{g.mode===MODES.FOUR?"四麻":"三麻"}</span>
               <span>{new Date(g.date).toLocaleDateString("ja-JP",{month:"short",day:"numeric"})}</span>
             </div>
             <div style={{display:"flex",gap:6}}>
@@ -688,7 +667,6 @@ function EditGameScreen({ game, onSave, onCancel }) {
   const exp = s.startPoints*pc;
   const diff = total-exp;
   const preview = calcFinalScores(names.map((name,i)=>({id:i,name,points:parsed[i]})), s);
-  const rc = ["r1","r2","r3","r4"];
   return (
     <div className="screen animate-in">
       <div className="card">
@@ -729,7 +707,7 @@ function EditGameScreen({ game, onSave, onCancel }) {
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {preview.map((r,i)=>(
             <div key={r.origIdx} className={`result-row ${r.rank===1?"rank1":""}`} style={{padding:"10px 12px"}}>
-              <span className={`rank-num ${rc[i]}`} style={{fontSize:22}}>{r.rank}</span>
+              <span className={`rank-num ${RANK_CLASSES[i]}`} style={{fontSize:22}}>{r.rank}</span>
               <span className="result-name" style={{fontSize:14}}>{r.name}</span>
               <div className="result-detail">
                 <div className={`result-total ${r.total>=0?"pos":"neg"}`} style={{fontSize:18}}>{formatPt(r.total,true)}</div>
