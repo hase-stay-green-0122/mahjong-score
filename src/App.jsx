@@ -62,11 +62,13 @@ function buildYearData(games, year) {
   const yg = games.filter(g=>new Date(g.date).getFullYear()===year);
   const map = {};
   yg.forEach(g=>g.results.forEach(r=>{
-    if(!map[r.name]) map[r.name]={name:r.name,games:0,totalScore:0,wins:0,top2:0,ranks:[]};
+    if(!map[r.name]) map[r.name]={name:r.name,games:0,totalScore:0,wins:0,top2:0,ranks:[],bestRawPoints:0,last4:0};
     const p=map[r.name];
     p.games++; p.totalScore+=r.total; p.ranks.push(r.rank);
     if(r.rank===1) p.wins++;
     if(r.rank<=2) p.top2++;
+    if(r.rank===g.results.length) p.last4++; // 最下位（4着or3着）カウント
+    if((r.rawPoints||r.points||0) > p.bestRawPoints) p.bestRawPoints = r.rawPoints||r.points||0;
   }));
   return { yearGames:yg, playerMap:map };
 }
@@ -713,10 +715,11 @@ function ScoresScreen({ games, year, setYear }) {
   const { yearGames, playerMap } = buildYearData(games, year);
   const players = Object.values(playerMap).map(p=>({
     ...p,
-    avg:Math.round((p.totalScore/p.games)*10)/10,
-    winRate:Math.round((p.wins/p.games)*100),
-    renRate:Math.round((p.top2/p.games)*100),
-    avgRank:Math.round((p.ranks.reduce((a,b)=>a+b,0)/p.ranks.length)*100)/100,
+    avg:        Math.round((p.totalScore/p.games)*10)/10,
+    winRate:    Math.round((p.wins/p.games)*100),
+    renRate:    Math.round((p.top2/p.games)*100),
+    avgRank:    Math.round((p.ranks.reduce((a,b)=>a+b,0)/p.ranks.length)*100)/100,
+    avoidRate:  Math.round(((p.games-p.last4)/p.games)*100), // 4着回避率
   })).sort((a,b)=>b.totalScore-a.totalScore);
   return (
     <div className="screen animate-in">
@@ -732,12 +735,26 @@ function ScoresScreen({ games, year, setYear }) {
                 {p.name}<span style={{marginLeft:"auto",fontSize:13,color:"var(--muted)"}}>{p.games}戦</span>
               </div>
               <div className="stat-body">
-                {[["トータルスコア",formatPt(p.totalScore,true),p.totalScore>=0?"pos":"neg"],["平均スコア",formatPt(p.avg,true),p.avg>=0?"pos":"neg"],["平均順位",p.avgRank,""],["1位率",`${p.winRate}%`,""]].map(([l,v,c])=>(
+                {[
+                  ["トータルスコア", formatPt(p.totalScore,true), p.totalScore>=0?"pos":"neg"],
+                  ["平均スコア",     formatPt(p.avg,true),        p.avg>=0?"pos":"neg"],
+                  ["平均順位",       p.avgRank,                   ""],
+                  ["トップ獲得回数", `${p.wins}回`,               ""],
+                  ["1着率",          `${p.winRate}%`,             ""],
+                ].map(([l,v,c])=>(
                   <div key={l} className="stat-row"><span>{l}</span><span className={`stat-val ${c}`}>{v}</span></div>
                 ))}
                 <div className="stat-row">
                   <span>連帯率 <span style={{fontSize:10,color:"var(--muted)"}}>（1・2位）</span></span>
                   <span className="stat-val" style={{color:p.renRate>=50?"var(--accent)":"var(--text)"}}>{p.renRate}%</span>
+                </div>
+                <div className="stat-row">
+                  <span>4着回避率</span>
+                  <span className="stat-val" style={{color:p.avoidRate>=75?"var(--green)":p.avoidRate<50?"var(--red)":"var(--text)"}}>{p.avoidRate}%</span>
+                </div>
+                <div className="stat-row">
+                  <span>最高素点</span>
+                  <span className="stat-val" style={{color:"var(--accent2)"}}>{p.bestRawPoints.toLocaleString()}</span>
                 </div>
               </div>
             </div>
