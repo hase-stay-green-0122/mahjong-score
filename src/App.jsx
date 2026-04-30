@@ -46,19 +46,24 @@ function calcFinalScores(players, settings) {
   const ranked = [...players].map((p,i)=>({...p,origIdx:i,rawPoints:p.points})).sort((a,b)=>b.points-a.points||a.origIdx-b.origIdx);
   ranked[0].points += oka;
   const results = ranked.map((p,rank)=>{
-    // 五捨六入：百の位を五捨六入してから1000で割る
+    // 五捨六入：(素点 - 返し点) ÷ 1000、端数は0.5未満切捨て・0.6以上切上げ
     const rawExact = (p.points - settings.returnPoints) / 1000;
-    const raw = Math.floor(rawExact + 0.4); // 0.5未満切捨て、0.6以上切上げ
+    const raw = Math.floor(rawExact + 0.4);
     const uma = settings.uma[rank];
     const total = raw + uma;
-    // 三麻は÷2（端数切り捨て）
+    // 三麻は÷2（端数切り捨て、1着は残差で上書きされる）
     const finalTotal = settings.playerCount === 3 ? Math.floor(total / 2) : total;
     return { ...p, rank:rank+1, rawPoints:p.rawPoints, raw, uma, total:finalTotal };
   });
-  // 三麻：1着のスコアは2・3着の合計を0から引いた残差（ゼロサム保証）
+  // ゼロサム補正：合計のズレ（五捨六入の誤差）を1着に加算
   if(settings.playerCount === 3) {
+    // 三麻：残差で1着を確定
     const othersSum = results.slice(1).reduce((s,r)=>s+r.total, 0);
     results[0].total = -othersSum;
+  } else {
+    // 四麻：誤差（通常0か±1）を1着に加算
+    const sum = results.reduce((s,r)=>s+r.total, 0);
+    results[0].total -= sum;
   }
   return results;
 }
@@ -77,7 +82,7 @@ function buildYearData(games, year) {
     p.games++; p.totalScore+=r.total; p.ranks.push(r.rank);
     if(r.rank===1) p.wins++;
     if(r.rank<=2) p.top2++;
-    if(r.rank===g.results.length) p.last4++; // 最下位（4着or3着）カウント
+    if(r.rank===g.results.length) p.last4++;
     if((r.rawPoints||r.points||0) > p.bestRawPoints) p.bestRawPoints = r.rawPoints||r.points||0;
   }));
   return { yearGames:yg, playerMap:map };
@@ -267,10 +272,8 @@ export default function App() {
   const deleteGame = id => { persist({ ...data, games:data.games.filter(g=>g.id!==id) }); setModal(null); };
   const updateGame = ug => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); setEditingGame(null); setView(VIEWS.HISTORY); };
   const saveSettings = s => persist({ ...data, settings:s });
-  const recalcAllSanma = () => {
+  const recalcAllGames = () => {
     const updated = data.games.map(g => {
-      if(g.mode !== MODES.THREE) return g;
-      // rawPointsから再計算（origIdxでソートして元の入力順に戻す）
       const players = [...g.results].sort((a,b)=>a.origIdx-b.origIdx).map(r=>({id:r.origIdx,name:r.name,points:r.rawPoints}));
       const results = calcFinalScores(players, g.settings);
       return { ...g, results };
@@ -347,7 +350,7 @@ export default function App() {
         )}
         {view===VIEWS.STATS && <StatsScreen games={data.games} year={statsYear} setYear={setStatsYear}/>}
         {view===VIEWS.SCORES && <ScoresScreen games={data.games} year={scoresYear} setYear={setScoresYear} scrollTarget={scrollTarget} clearScrollTarget={()=>setScrollTarget(null)}/>}
-        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalcSanma={()=>setModal({title:"三麻履歴を再計算しますか？",sub:"保存済みの全三麻対局のスコアを新ロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllSanma();}})}/>}
+        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalc={()=>setModal({title:"全履歴を再計算しますか？",sub:"保存済みの全対局（四麻・三麻）のスコアを現在のロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllGames();}})}/>}
         {[VIEWS.HOME,VIEWS.HISTORY,VIEWS.STATS,VIEWS.SCORES,VIEWS.SETTINGS].includes(view) && (
           <nav className="bottom-nav">
             {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
@@ -480,10 +483,8 @@ function SetupScreen({ settings, onStart }) {
 function GameScreen({ gs, onFinish }) {
   // 1000点単位で入力（例: 38600点 → 38.6と入力）
   const [tmp, setTmp] = useState(gs.players.map(p=>String(p.points/1000)));
-  const [showError, setShowError] = useState(false);
   const [memo, setMemo] = useState(gs.memo||"");
 
-  // 1000倍して実際の点数に戻す
   const parsedTmp = tmp.map(v=>(parseFloat(String(v).replace(/,/g,""))||0)*1000);
   const total = parsedTmp.reduce((s,v)=>s+v,0);
   const expected = gs.settings.startPoints * gs.settings.playerCount;
@@ -492,11 +493,7 @@ function GameScreen({ gs, onFinish }) {
   const sorted = [...parsedTmp.map((pts,i)=>({...gs.players[i],points:pts}))].sort((a,b)=>b.points-a.points);
 
   const handleFinish = () => {
-    if (diff !== 0) {
-      setShowError(true);
-      return;
-    }
-    setShowError(false);
+    if(diff !== 0) return;
     onFinish({...gs, memo, players: gs.players.map((p,i)=>({...p,points:parsedTmp[i]}))});
   };
 
@@ -517,7 +514,7 @@ function GameScreen({ gs, onFinish }) {
                 <div style={{display:"flex",alignItems:"center",gap:4}}>
                   <input className="score-input-field" type="number" step="0.1" value={tmp[i]}
                     onFocus={e=>e.target.select()}
-                    onChange={e=>{const t=[...tmp];t[i]=e.target.value;setTmp(t);setShowError(false);}}
+                    onChange={e=>{const t=[...tmp];t[i]=e.target.value;setTmp(t);}}
                     style={{width:80,textAlign:"right"}}/>
                   <span style={{fontSize:13,color:"var(--muted)",fontWeight:700}}>× 1000</span>
                 </div>
@@ -526,18 +523,12 @@ function GameScreen({ gs, onFinish }) {
           })}
         </div>
         <div className="total-bar" style={{marginTop:12}}>
-          <span className="total-bar-label">合計点</span>
-          <span className={`total-bar-val ${diff===0?"ok":"ng"}`}>
-            {total.toLocaleString()} {diff!==0&&<span style={{fontSize:13}}>({diff>0?"+":""}{diff})</span>}
-          </span>
+          <span className="total-bar-label">合計</span>
+          <span className={`total-bar-val ${diff===0?"ok":"ng"}`}>{total.toLocaleString()}点</span>
         </div>
-        {showError && diff!==0 && (
-          <div style={{marginTop:10,padding:"10px 12px",background:"rgba(224,92,122,.12)",border:"1px solid rgba(224,92,122,.4)",borderRadius:8}}>
-            <div style={{fontSize:13,color:"var(--red)",fontWeight:700,marginBottom:4}}>⚠ 合計が{expected.toLocaleString()}点になっていません</div>
-            <div style={{fontSize:12,color:"var(--muted)"}}>
-              現在 <b style={{color:"var(--red)"}}>{total.toLocaleString()}点</b>（{diff>0?"+":""}{diff}点）
-              — 各自のスコアを確認してください
-            </div>
+        {diff!==0&&(
+          <div style={{marginTop:6,textAlign:"right",fontSize:13,color:"var(--muted)"}}>
+            あと <b style={{color:"var(--accent2)"}}>{(-diff).toLocaleString()}点</b>
           </div>
         )}
       </div>
@@ -584,7 +575,6 @@ function ResultScreen({ gs, onHome, tables, activeIdx, setActiveIdx, setView }) 
               <div className="player-badge" style={{background:PLAYER_COLORS[r.origIdx].bg,color:PLAYER_COLORS[r.origIdx].color,width:30,height:30,fontSize:11,marginTop:4,flexShrink:0}}>{WINDS[r.origIdx]}</div>
               <div style={{flex:1}}>
                 <div className="result-name" style={{marginBottom:6}}>{r.name}</div>
-                {/* 内訳：縦並び */}
                 <div style={{display:"flex",flexDirection:"column",gap:2}}>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--muted)"}}>
                     <span>素点</span>
@@ -743,7 +733,7 @@ function EditGameScreen({ game, onSave, onCancel }) {
           ))}
         </div>
       </div>
-      <button className="btn btn-primary" onClick={()=>onSave({...game,date:new Date(date).toISOString(),results:calcFinalScores(names.map((name,i)=>({id:i,name,points:parsed[i]})),s)})}>✓ 保存する</button>
+      <button className="btn btn-primary" onClick={()=>onSave({...game,date:new Date(date).toISOString(),results:preview})}>✓ 保存する</button>
       <button className="btn btn-secondary" onClick={onCancel}>キャンセル</button>
     </div>
   );
@@ -787,7 +777,7 @@ function ScoresScreen({ games, year, setYear, scrollTarget, clearScrollTarget })
                   ["平均スコア",     formatPt(p.avg,true),        p.avg>=0?"pos":"neg"],
                   ["平均順位",       p.avgRank,                   ""],
                   ["トップ獲得回数", `${p.wins}回`,               ""],
-                  ["1着率",          `${p.winRate}%`,             ""],
+                  ["トップ獲得率",   `${p.winRate}%`,             ""],
                 ].map(([l,v,c])=>(
                   <div key={l} className="stat-row"><span>{l}</span><span className={`stat-val ${c}`}>{v}</span></div>
                 ))}
@@ -796,7 +786,7 @@ function ScoresScreen({ games, year, setYear, scrollTarget, clearScrollTarget })
                   <span className="stat-val" style={{color:p.renRate>=50?"var(--accent)":"var(--text)"}}>{p.renRate}%</span>
                 </div>
                 <div className="stat-row">
-                  <span>4着回避率</span>
+                  <span>ラス回避率</span>
                   <span className="stat-val" style={{color:p.avoidRate>=75?"var(--green)":p.avoidRate<50?"var(--red)":"var(--text)"}}>{p.avoidRate}%</span>
                 </div>
                 <div className="stat-row">
@@ -893,22 +883,22 @@ function StatsScreen({ games, year, setYear }) {
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,fontFamily:"var(--font)"}}>
           <thead>
             <tr style={{background:"var(--surface2)",borderBottom:"1px solid var(--border)"}}>
-              <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",position:"sticky",left:0,background:"var(--surface2)",zIndex:1}}>順位　プレイヤー</th>
-              <th style={{padding:"8px 6px",textAlign:"center",color:"var(--accent)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",minWidth:48,borderRight:"1px solid var(--border)"}}>総合</th>
+              <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",position:"sticky",left:0,width:120,minWidth:120,background:"var(--surface2)",zIndex:2}}>順位　プレイヤー</th>
+              <th style={{padding:"8px 6px",textAlign:"center",color:"var(--accent)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",minWidth:48,width:52,position:"sticky",left:120,background:"var(--surface2)",zIndex:2,borderRight:"1px solid var(--border)"}}>総合</th>
               {yearGames.map((g,i)=>{const d=new Date(g.date);return <th key={i} style={{padding:"4px 6px",textAlign:"center",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",minWidth:48}}><div style={{fontSize:10,color:"var(--accent)"}}>{`第${i+1}回`}</div><div>{`${d.getMonth()+1}/${d.getDate()}`}</div></th>;})}
             </tr>
           </thead>
           <tbody>
             {players.map((p,pi)=>(
               <tr key={p.name} style={{borderBottom:"1px solid var(--border)",background:pi%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
-                <td style={{padding:"8px 10px",fontWeight:700,whiteSpace:"nowrap",position:"sticky",left:0,background:"var(--surface)",zIndex:1}}>
+                <td style={{padding:"8px 10px",fontWeight:700,whiteSpace:"nowrap",position:"sticky",left:0,width:120,minWidth:120,background:pi%2===0?"var(--surface)":"#1e1830",zIndex:1}}>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                     <span style={{fontSize:11,fontWeight:900,color:["var(--accent)","#aaa","#c87","var(--muted)"][pi]??'var(--muted)',minWidth:14,textAlign:"right"}}>{pi+1}</span>
                     <ShapeIcon shape={p.shape} color={p.color} size={6}/>
                     <span style={{textAlign:"left"}}>{p.name}</span>
                   </div>
                 </td>
-                <td style={{padding:"8px 6px",textAlign:"center",fontWeight:900,fontSize:13,color:p.totalScore>0?"var(--green)":p.totalScore<0?"var(--red)":"var(--muted)",borderRight:"1px solid var(--border)"}}>
+                <td style={{padding:"8px 6px",textAlign:"center",fontWeight:900,fontSize:13,color:p.totalScore>0?"var(--green)":p.totalScore<0?"var(--red)":"var(--muted)",position:"sticky",left:120,background:pi%2===0?"var(--surface)":"#1e1830",zIndex:1,borderRight:"1px solid var(--border)"}}>
                   {formatPt(p.totalScore,true)}
                 </td>
                 {yearGames.map((g,gi)=>{
@@ -985,7 +975,7 @@ function StatsScreen({ games, year, setYear }) {
   );
 }
 
-function SettingsScreen({ settings, onSave, onRecalcSanma }) {
+function SettingsScreen({ settings, onSave, onRecalc }) {
   const [s, setS] = useState(()=>JSON.parse(JSON.stringify(settings)));
   const [saved, setSaved] = useState(false);
   const update = (mode,key,val) => setS(prev=>({...prev,[mode]:{...prev[mode],[key]:val}}));
@@ -1008,8 +998,8 @@ function SettingsScreen({ settings, onSave, onRecalcSanma }) {
         <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.6}}>
           三麻のスコア算出ロジックを変更した場合、過去の履歴を新ロジックで再計算できます。
         </div>
-        <button className="btn btn-secondary" onClick={onRecalcSanma} style={{width:"100%",fontSize:14}}>
-          🔄　三麻の履歴を再計算する
+        <button className="btn btn-secondary" onClick={onRecalc} style={{width:"100%",fontSize:14}}>
+          🔄　全履歴を再計算する（四麻・三麻）
         </button>
       </div>
       {[MODES.FOUR,MODES.THREE].map(mode=>(
