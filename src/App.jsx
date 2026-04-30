@@ -291,6 +291,8 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const confirmFinish = () => {
     setModal({ title:"対局を終了しますか？", sub:"現在の点数で集計します", confirmLabel:"終了して集計", onConfirm:()=>{ setModal(null); finishGame(gs); } });
   };
 
