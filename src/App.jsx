@@ -281,7 +281,16 @@ export default function App() {
     persist({ ...data, games:updated });
   };
 
-  const confirmFinish = () => {
+  const exportData = () => {
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mahjong-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
     setModal({ title:"対局を終了しますか？", sub:"現在の点数で集計します", confirmLabel:"終了して集計", onConfirm:()=>{ setModal(null); finishGame(gs); } });
   };
 
@@ -350,7 +359,7 @@ export default function App() {
         )}
         {view===VIEWS.STATS && <StatsScreen games={data.games} year={statsYear} setYear={setStatsYear}/>}
         {view===VIEWS.SCORES && <ScoresScreen games={data.games} year={scoresYear} setYear={setScoresYear} scrollTarget={scrollTarget} clearScrollTarget={()=>setScrollTarget(null)}/>}
-        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalc={()=>setModal({title:"全履歴を再計算しますか？",sub:"保存済みの全対局（四麻・三麻）のスコアを現在のロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllGames();}})}/>}
+        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalc={()=>setModal({title:"全履歴を再計算しますか？",sub:"保存済みの全対局（四麻・三麻）のスコアを現在のロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllGames();}})} onExport={exportData}/>}
         {[VIEWS.HOME,VIEWS.HISTORY,VIEWS.STATS,VIEWS.SCORES,VIEWS.SETTINGS].includes(view) && (
           <nav className="bottom-nav">
             {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
@@ -975,7 +984,7 @@ function StatsScreen({ games, year, setYear }) {
   );
 }
 
-function SettingsScreen({ settings, onSave, onRecalc }) {
+function SettingsScreen({ settings, onSave, onRecalc, onExport }) {
   const [s, setS] = useState(()=>JSON.parse(JSON.stringify(settings)));
   const [saved, setSaved] = useState(false);
   const update = (mode,key,val) => setS(prev=>({...prev,[mode]:{...prev[mode],[key]:val}}));
@@ -995,12 +1004,14 @@ function SettingsScreen({ settings, onSave, onRecalc }) {
     <div className="screen animate-in">
       <div className="card">
         <div className="card-title" style={{fontSize:13}}>データ管理</div>
-        <div style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.6}}>
-          三麻のスコア算出ロジックを変更した場合、過去の履歴を新ロジックで再計算できます。
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <button className="btn btn-secondary" onClick={onExport} style={{width:"100%",fontSize:14}}>
+            💾　データをJSONでバックアップ
+          </button>
+          <button className="btn btn-secondary" onClick={onRecalc} style={{width:"100%",fontSize:14}}>
+            🔄　全履歴を再計算する（四麻・三麻）
+          </button>
         </div>
-        <button className="btn btn-secondary" onClick={onRecalc} style={{width:"100%",fontSize:14}}>
-          🔄　全履歴を再計算する（四麻・三麻）
-        </button>
       </div>
       {[MODES.FOUR,MODES.THREE].map(mode=>(
         <div key={mode} className="card">
