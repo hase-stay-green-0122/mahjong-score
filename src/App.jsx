@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS = {
   "4":{ mode:"4", label:"四麻", playerCount:4, startPoints:25000, returnPoints:30000, uma:[10,5,-5,-10] },
   "3":{ mode:"3", label:"三麻", playerCount:3, startPoints:35000, returnPoints:40000, uma:[20,0,-20] },
 };
-const VIEWS = { HOME:"home", SETUP:"setup", GAME:"game", RESULT:"result", HISTORY:"history", EDIT:"edit", STATS:"stats", SCORES:"scores", SETTINGS:"settings" };
+const VIEWS = { HOME:"home", SETUP:"setup", GAME:"game", RESULT:"result", HISTORY:"history", EDIT:"edit", STATS:"stats", SCORES:"scores", SETTINGS:"settings", SETTLEMENT:"settlement" };
 const PLAYER_COLORS = [
   { bg:"rgba(179,136,255,0.25)", color:"#b388ff" },
   { bg:"rgba(100,160,240,0.25)", color:"#64a0f0" },
@@ -361,10 +361,11 @@ export default function App() {
         )}
         {view===VIEWS.STATS && <StatsScreen games={data.games} year={statsYear} setYear={setStatsYear}/>}
         {view===VIEWS.SCORES && <ScoresScreen games={data.games} year={scoresYear} setYear={setScoresYear} scrollTarget={scrollTarget} clearScrollTarget={()=>setScrollTarget(null)}/>}
+        {view===VIEWS.SETTLEMENT && <SettlementScreen games={data.games}/>}
         {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalc={()=>setModal({title:"全履歴を再計算しますか？",sub:"保存済みの全対局（四麻・三麻）のスコアを現在のロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllGames();}})} onExport={exportData}/>}
-        {[VIEWS.HOME,VIEWS.HISTORY,VIEWS.STATS,VIEWS.SCORES,VIEWS.SETTINGS].includes(view) && (
+        {[VIEWS.HOME,VIEWS.HISTORY,VIEWS.STATS,VIEWS.SCORES,VIEWS.SETTLEMENT,VIEWS.SETTINGS].includes(view) && (
           <nav className="bottom-nav">
-            {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
+            {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTLEMENT,icon:"¥",label:"精算"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
               .map(({v,icon,label}) => (
                 <button key={v} className={`nav-btn ${view===v?"active":""}`} onClick={()=>setView(v)}>
                   <span className="icon">{icon}</span>{label}
@@ -981,6 +982,98 @@ function StatsScreen({ games, year, setYear }) {
           })}
         </div>
         <div style={{fontSize:10,color:"var(--muted)",marginTop:6,textAlign:"right"}}>← 横スクロールで全期間を確認　　凡例タップで絞り込み</div>
+      </div>
+    </div>
+  );
+}
+
+function SettlementScreen({ games }) {
+  const sorted = [...games].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const [selectedId, setSelectedId] = useState(sorted[0]?.id||"");
+  const game = sorted.find(g=>g.id===selectedId)||null;
+
+  const formatDate = d => {
+    const dt = new Date(d);
+    return `${dt.getMonth()+1}/${dt.getDate()} ${dt.getHours().toString().padStart(2,"0")}:${dt.getMinutes().toString().padStart(2,"0")}`;
+  };
+
+  // 年間での通し回数を計算
+  const getGameNo = g => {
+    const year = new Date(g.date).getFullYear();
+    const sameYear = [...games]
+      .filter(x=>new Date(x.date).getFullYear()===year)
+      .sort((a,b)=>new Date(a.date)-new Date(b.date));
+    return sameYear.findIndex(x=>x.id===g.id)+1;
+  };
+
+  const RATE = 50;
+
+  return (
+    <div className="screen animate-in" style={{gap:14}}>
+      <div className="card">
+        <div className="card-title">精算</div>
+        {sorted.length===0
+          ? <div style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}}>対局データがありません</div>
+          : <>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,color:"var(--muted)",marginBottom:6}}>対局を選択</div>
+              <select
+                value={selectedId}
+                onChange={e=>setSelectedId(e.target.value)}
+                style={{width:"100%",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:14,padding:"10px 12px",outline:"none"}}>
+                {sorted.map(g=>(
+                  <option key={g.id} value={g.id}>
+                    {`第${getGameNo(g)}回 ${formatDate(g.date)} （${g.mode===MODES.FOUR?"四麻":"三麻"}）`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {game&&(
+              <>
+                <div style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>
+                  レート：{RATE}円 / 1pt
+                </div>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
+                  <thead>
+                    <tr style={{borderBottom:"1px solid var(--border)"}}>
+                      <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:12}}>順位</th>
+                      <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:12}}>プレーヤー</th>
+                      <th style={{padding:"8px 10px",textAlign:"right",color:"var(--muted)",fontWeight:700,fontSize:12}}>スコア</th>
+                      <th style={{padding:"8px 10px",textAlign:"right",color:"var(--accent)",fontWeight:700,fontSize:12}}>精算額</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...game.results].sort((a,b)=>a.rank-b.rank).map((r,i)=>{
+                      const amount = r.total * RATE;
+                      return (
+                        <tr key={r.name} style={{borderBottom:"1px solid var(--border)",background:i%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
+                          <td style={{padding:"12px 10px"}}>
+                            <span className={`rank-num ${RANK_CLASSES[i]}`} style={{fontSize:16}}>{r.rank}</span>
+                          </td>
+                          <td style={{padding:"12px 10px",fontWeight:700}}>{r.name}</td>
+                          <td style={{padding:"12px 10px",textAlign:"right",color:r.total>0?"var(--green)":r.total<0?"var(--red)":"var(--muted)",fontWeight:700}}>
+                            {formatPt(r.total,true)}
+                          </td>
+                          <td style={{padding:"12px 10px",textAlign:"right",fontWeight:900,fontSize:16,color:amount>0?"var(--green)":amount<0?"var(--red)":"var(--muted)"}}>
+                            {amount>0?"+":""}{amount.toLocaleString()}円
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{borderTop:"2px solid var(--border)"}}>
+                      <td colSpan={3} style={{padding:"10px 10px",textAlign:"right",fontSize:12,color:"var(--muted)",fontWeight:700}}>合計</td>
+                      <td style={{padding:"10px 10px",textAlign:"right",fontWeight:900,fontSize:14,color:"var(--muted)"}}>
+                        {(game.results.reduce((s,r)=>s+r.total,0)*RATE).toLocaleString()}円
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </>
+            )}
+          </>
+        }
       </div>
     </div>
   );
