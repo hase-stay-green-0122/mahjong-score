@@ -1095,7 +1095,7 @@ function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onA
     }));
     onAddManual({
       id:genId(), mode:manualMode,
-      date:new Date(manualDate).toISOString(),
+      date: manualDate + "T12:00:00.000+09:00",
       settings:DEFAULT_SETTINGS[manualMode],
       memo:"", results,
     });
