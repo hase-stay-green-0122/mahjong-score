@@ -1075,34 +1075,30 @@ function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onA
   // 手入力フォームの状態
   const [showManual, setShowManual] = useState(false);
   const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0,10));
-  const [manualMode, setManualMode] = useState(MODES.FOUR);
-  const [manualPlayers, setManualPlayers] = useState([{name:"",score:""},{name:"",score:""},{name:"",score:""},{name:"",score:""}]);
-  const manualCnt = manualMode===MODES.FOUR ? 4 : 3;
+  const [manualScores, setManualScores] = useState(()=>Object.fromEntries(MEMBER_LIST.map(m=>[m,""])));
   const [manualSaved, setManualSaved] = useState(false);
 
-  const handleManualModeChange = m => {
-    setManualMode(m);
-    setManualPlayers(Array.from({length: m===MODES.FOUR?4:3}, ()=>({name:"",score:""})));
-  };
-  const setManualPlayer = (i,field,val) => setManualPlayers(prev=>prev.map((p,pi)=>pi===i?{...p,[field]:val}:p));
+  const setManualScore = (name, val) => setManualScores(prev=>({...prev,[name]:val}));
 
   const handleManualSave = () => {
-    const rows = manualPlayers.slice(0,manualCnt);
-    if(rows.some(p=>!p.name||p.score==="")) return;
-    const sorted = [...rows].sort((a,b)=>Number(b.score)-Number(a.score));
+    const entries = MEMBER_LIST
+      .filter(name => manualScores[name] !== "" && manualScores[name] !== null)
+      .map(name => ({ name, score: Number(manualScores[name]) }));
+    if(entries.length === 0) return;
+    const sorted = [...entries].sort((a,b)=>b.score-a.score);
     const results = sorted.map((p,i)=>({
       id:i, name:p.name, rank:i+1, raw:0, uma:0, rawPoints:0, origIdx:i,
-      total:Number(p.score),
+      total:p.score,
     }));
     onAddManual({
-      id:genId(), mode:manualMode, manual:true,
+      id:genId(), mode:MODES.FOUR, manual:true,
       date: manualDate + "T12:00:00.000+09:00",
-      settings:DEFAULT_SETTINGS[manualMode],
+      settings:DEFAULT_SETTINGS[MODES.FOUR],
       memo:"", results,
     });
     setManualSaved(true);
     setTimeout(()=>setManualSaved(false),1500);
-    setManualPlayers(Array.from({length:manualCnt},()=>({name:"",score:""})));
+    setManualScores(Object.fromEntries(MEMBER_LIST.map(m=>[m,""])));
   };
 
   const update = (mode,key,val) => setS(prev=>({...prev,[mode]:{...prev[mode],[key]:val}}));
@@ -1147,28 +1143,14 @@ function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onA
               <input type="date" value={manualDate} onChange={e=>setManualDate(e.target.value)}
                 style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:14,padding:"6px 10px",outline:"none"}}/>
             </div>
-            <div className="setting-row">
-              <div className="setting-label">種別</div>
-              <div style={{display:"flex",gap:8}}>
-                {[{v:MODES.FOUR,l:"四麻"},{v:MODES.THREE,l:"三麻"}].map(({v,l})=>(
-                  <button key={v} onClick={()=>handleManualModeChange(v)}
-                    style={{padding:"6px 18px",borderRadius:8,border:"1px solid var(--border)",background:manualMode===v?"var(--accent)":"var(--surface2)",color:manualMode===v?"#fff":"var(--text)",fontFamily:"inherit",fontSize:13,cursor:"pointer"}}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{fontSize:12,color:"var(--muted)",letterSpacing:1}}>プレーヤーとスコア（pt）</div>
-            {Array.from({length:manualCnt}).map((_,i)=>(
-              <div key={i} style={{display:"flex",gap:8,alignItems:"center"}}>
-                <select value={manualPlayers[i]?.name||""} onChange={e=>setManualPlayer(i,"name",e.target.value)}
-                  style={{flex:1,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:13,padding:"8px 10px",outline:"none"}}>
-                  <option value="">-- 選択 --</option>
-                  {MEMBER_LIST.map(m=><option key={m} value={m}>{m}</option>)}
-                </select>
-                <input type="number" placeholder="スコア" value={manualPlayers[i]?.score||""} onChange={e=>setManualPlayer(i,"score",e.target.value)}
+            <div style={{fontSize:12,color:"var(--muted)"}}>スコアを入力したプレーヤーのみ保存されます</div>
+            {MEMBER_LIST.map(name=>(
+              <div key={name} style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{flex:1,fontSize:14,fontWeight:700}}>{name}</span>
+                <input type="number" placeholder="－" value={manualScores[name]} onChange={e=>setManualScore(name,e.target.value)}
+                  onFocus={e=>e.target.select()}
                   style={{width:80,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:13,padding:"8px 10px",outline:"none",textAlign:"right"}}/>
-                <span style={{fontSize:12,color:"var(--muted)"}}>pt</span>
+                <span style={{fontSize:12,color:"var(--muted)",minWidth:16}}>pt</span>
               </div>
             ))}
             <button className="btn btn-primary" onClick={handleManualSave}
