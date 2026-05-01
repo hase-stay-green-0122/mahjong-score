@@ -73,8 +73,8 @@ function formatPt(n, w=false) {
   const s = Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1);
   return w&&n>0 ? `+${s}` : s;
 }
-function buildYearData(games, year) {
-  const yg = games.filter(g=>new Date(g.date).getFullYear()===year);
+function buildYearData(games, year, excludeManual=false) {
+  const yg = games.filter(g=>new Date(g.date).getFullYear()===year && (!excludeManual || !g.manual));
   const map = {};
   yg.forEach(g=>g.results.forEach(r=>{
     if(!map[r.name]) map[r.name]={name:r.name,games:0,totalScore:0,wins:0,top2:0,ranks:[],bestRawPoints:0,last4:0};
@@ -643,12 +643,13 @@ function ResultScreen({ gs, onHome, tables, activeIdx, setActiveIdx, setView }) 
 }
 
 function HistoryScreen({ games, onEdit, onDelete }) {
-  if(games.length===0) return (
+  const filtered = games.filter(g=>!g.manual);
+  if(filtered.length===0) return (
     <div className="screen animate-in"><div className="empty-state"><div className="empty-icon">📋</div>対局履歴はまだありません</div></div>
   );
   return (
     <div className="screen animate-in">
-      {games.map(g=>(
+      {filtered.map(g=>(
         <div key={g.id} className="history-card">
           <div className="history-header">
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -753,7 +754,7 @@ function EditGameScreen({ game, onSave, onCancel }) {
 }
 
 function ScoresScreen({ games, year, setYear, scrollTarget, clearScrollTarget }) {
-  const { yearGames, playerMap } = buildYearData(games, year);
+  const { yearGames, playerMap } = buildYearData(games, year, true);
   const players = Object.values(playerMap).map(p=>({
     ...p,
     avg:        Math.round((p.totalScore/p.games)*10)/10,
@@ -1094,7 +1095,7 @@ function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onA
       total:Number(p.score),
     }));
     onAddManual({
-      id:genId(), mode:manualMode,
+      id:genId(), mode:manualMode, manual:true,
       date: manualDate + "T12:00:00.000+09:00",
       settings:DEFAULT_SETTINGS[manualMode],
       memo:"", results,
