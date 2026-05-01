@@ -271,6 +271,7 @@ export default function App() {
 
   const deleteAllGames = () => { persist({ ...data, games:[] }); setModal(null); };
   const addManualGame = (entry) => { persist({ ...data, games:[entry, ...data.games] }); };
+  const updateManualGame = (ug) => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); };
   const updateGame = ug => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); setEditingGame(null); setView(VIEWS.HISTORY); };
   const saveSettings = s => persist({ ...data, settings:s });
   const recalcAllGames = () => {
@@ -363,7 +364,7 @@ export default function App() {
         {view===VIEWS.STATS && <StatsScreen games={data.games} year={statsYear} setYear={setStatsYear}/>}
         {view===VIEWS.SCORES && <ScoresScreen games={data.games} year={scoresYear} setYear={setScoresYear} scrollTarget={scrollTarget} clearScrollTarget={()=>setScrollTarget(null)}/>}
         {view===VIEWS.SETTLEMENT && <SettlementScreen games={data.games}/>}
-        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalc={()=>setModal({title:"全履歴を再計算しますか？",sub:"保存済みの全対局（四麻・三麻）のスコアを現在のロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllGames();}})} onExport={exportData} onDeleteAll={()=>setModal({title:"全履歴を削除しますか？",sub:"プレーヤーリストは残ります。この操作は元に戻せません。",confirmLabel:"全て削除する",onConfirm:deleteAllGames})} onAddManual={addManualGame}/>}
+        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalc={()=>setModal({title:"全履歴を再計算しますか？",sub:"保存済みの全対局（四麻・三麻）のスコアを現在のロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllGames();}})} onExport={exportData} onDeleteAll={()=>setModal({title:"全履歴を削除しますか？",sub:"プレーヤーリストは残ります。この操作は元に戻せません。",confirmLabel:"全て削除する",onConfirm:deleteAllGames})} onAddManual={addManualGame} onUpdateManual={updateManualGame} manualGames={data.games.filter(g=>g.manual)}/>}
         {[VIEWS.HOME,VIEWS.HISTORY,VIEWS.STATS,VIEWS.SCORES,VIEWS.SETTLEMENT,VIEWS.SETTINGS].includes(view) && (
           <nav className="bottom-nav">
             {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTLEMENT,icon:"¥",label:"精算"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
@@ -1068,7 +1069,7 @@ function SettlementScreen({ games }) {
   );
 }
 
-function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onAddManual }) {
+function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onAddManual, onUpdateManual, manualGames }) {
   const [s, setS] = useState(()=>JSON.parse(JSON.stringify(settings)));
   const [saved, setSaved] = useState(false);
 
@@ -1078,7 +1079,26 @@ function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onA
   const [manualScores, setManualScores] = useState(()=>Object.fromEntries(MEMBER_LIST.map(m=>[m,""])));
   const [manualSaved, setManualSaved] = useState(false);
 
+  // 編集モード
+  const [editingManualId, setEditingManualId] = useState(null);
+
   const setManualScore = (name, val) => setManualScores(prev=>({...prev,[name]:val}));
+
+  const startEdit = (g) => {
+    const scores = Object.fromEntries(MEMBER_LIST.map(m=>[m,""]));
+    g.results.forEach(r=>{ scores[r.name] = String(r.total); });
+    setManualScores(scores);
+    setManualDate(g.date.slice(0,10));
+    setEditingManualId(g.id);
+    setShowManual(true);
+    setTimeout(()=>document.querySelector(".manual-form-card")?.scrollIntoView({behavior:"smooth"}),100);
+  };
+
+  const cancelEdit = () => {
+    setEditingManualId(null);
+    setManualDate(new Date().toISOString().slice(0,10));
+    setManualScores(Object.fromEntries(MEMBER_LIST.map(m=>[m,""])));
+  };
 
   const handleManualSave = () => {
     const entries = MEMBER_LIST
@@ -1090,15 +1110,22 @@ function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onA
       id:i, name:p.name, rank:i+1, raw:0, uma:0, rawPoints:0, origIdx:i,
       total:p.score,
     }));
-    onAddManual({
-      id:genId(), mode:MODES.FOUR, manual:true,
+    const entry = {
+      id: editingManualId || genId(), mode:MODES.FOUR, manual:true,
       date: manualDate + "T12:00:00.000+09:00",
       settings:DEFAULT_SETTINGS[MODES.FOUR],
       memo:"", results,
-    });
+    };
+    if(editingManualId) {
+      onUpdateManual(entry);
+    } else {
+      onAddManual(entry);
+    }
     setManualSaved(true);
     setTimeout(()=>setManualSaved(false),1500);
+    setEditingManualId(null);
     setManualScores(Object.fromEntries(MEMBER_LIST.map(m=>[m,""])));
+    setManualDate(new Date().toISOString().slice(0,10));
   };
 
   const update = (mode,key,val) => setS(prev=>({...prev,[mode]:{...prev[mode],[key]:val}}));
@@ -1128,37 +1155,66 @@ function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onA
           <button className="btn btn-secondary" onClick={()=>setShowManual(v=>!v)} style={{width:"100%",fontSize:14}}>
             ✏️　過去データを手入力で追加
           </button>
-          <button className="btn btn-secondary" onClick={onDeleteAll} style={{width:"100%",fontSize:14,color:"var(--red)",borderColor:"var(--red)"}}>
+          <button className="btn btn-secondary" onClick={()=>{const pw=window.prompt("パスワードを入力してください");if(pw==="fight")onDeleteAll();else if(pw!==null)window.alert("パスワードが違います");}} style={{width:"100%",fontSize:14,color:"var(--red)",borderColor:"var(--red)"}}>
             🗑　全履歴を削除する
           </button>
         </div>
       </div>
 
       {showManual&&(
-        <div className="card">
-          <div className="card-title" style={{fontSize:13}}>過去データを手入力で追加</div>
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <div className="setting-row">
-              <div className="setting-label">対局日</div>
-              <input type="date" value={manualDate} onChange={e=>setManualDate(e.target.value)}
-                style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:14,padding:"6px 10px",outline:"none"}}/>
-            </div>
-            <div style={{fontSize:12,color:"var(--muted)"}}>スコアを入力したプレーヤーのみ保存されます</div>
-            {MEMBER_LIST.map(name=>(
-              <div key={name} style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{flex:1,fontSize:14,fontWeight:700}}>{name}</span>
-                <input type="number" placeholder="－" value={manualScores[name]} onChange={e=>setManualScore(name,e.target.value)}
-                  onFocus={e=>e.target.select()}
-                  style={{width:80,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:13,padding:"8px 10px",outline:"none",textAlign:"right"}}/>
-                <span style={{fontSize:12,color:"var(--muted)",minWidth:16}}>pt</span>
+        <>
+          {/* 既存の手入力データ一覧 */}
+          {manualGames.length>0&&(
+            <div className="card">
+              <div className="card-title" style={{fontSize:13}}>手入力済みデータ</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {[...manualGames].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(g=>{
+                  const d = new Date(g.date);
+                  const label = `${d.getMonth()+1}/${d.getDate()} （${g.results.length}人）`;
+                  const isEditing = editingManualId===g.id;
+                  return (
+                    <div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 4px",borderBottom:"1px solid var(--border)"}}>
+                      <div>
+                        <span style={{fontWeight:700,fontSize:14}}>{label}</span>
+                        <span style={{fontSize:12,color:"var(--muted)",marginLeft:8}}>{g.results.map(r=>r.name).join("・")}</span>
+                      </div>
+                      <button onClick={()=>isEditing?cancelEdit():startEdit(g)}
+                        style={{padding:"4px 12px",borderRadius:8,border:"1px solid var(--border)",background:isEditing?"var(--surface2)":"var(--accent)",color:isEditing?"var(--muted)":"#fff",fontFamily:"inherit",fontSize:12,cursor:"pointer"}}>
+                        {isEditing?"キャンセル":"編集"}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-            <button className="btn btn-primary" onClick={handleManualSave}
-              style={{background:manualSaved?"linear-gradient(135deg,#2d8a4e,#5cc87a)":undefined,transition:"background 0.3s"}}>
-              {manualSaved?"✓ 追加しました！":"この対局を追加する"}
-            </button>
+            </div>
+          )}
+
+          {/* 手入力フォーム */}
+          <div className="card manual-form-card">
+            <div className="card-title" style={{fontSize:13}}>{editingManualId?"手入力データを編集":"過去データを手入力で追加"}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div className="setting-row">
+                <div className="setting-label">対局日</div>
+                <input type="date" value={manualDate} onChange={e=>setManualDate(e.target.value)}
+                  style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:14,padding:"6px 10px",outline:"none"}}/>
+              </div>
+              <div style={{fontSize:12,color:"var(--muted)"}}>スコアを入力したプレーヤーのみ保存されます</div>
+              {MEMBER_LIST.map(name=>(
+                <div key={name} style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{flex:1,fontSize:14,fontWeight:700}}>{name}</span>
+                  <input type="number" placeholder="－" value={manualScores[name]} onChange={e=>setManualScore(name,e.target.value)}
+                    onFocus={e=>e.target.select()}
+                    style={{width:80,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:13,padding:"8px 10px",outline:"none",textAlign:"right"}}/>
+                  <span style={{fontSize:12,color:"var(--muted)",minWidth:16}}>pt</span>
+                </div>
+              ))}
+              <button className="btn btn-primary" onClick={handleManualSave}
+                style={{background:manualSaved?"linear-gradient(135deg,#2d8a4e,#5cc87a)":undefined,transition:"background 0.3s"}}>
+                {manualSaved?"✓ 保存しました！":editingManualId?"変更を保存する":"この対局を追加する"}
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
       {[MODES.FOUR,MODES.THREE].map(mode=>(
         <div key={mode} className="card">
