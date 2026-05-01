@@ -269,7 +269,8 @@ export default function App() {
     setView(VIEWS.RESULT);
   };
 
-  const deleteGame = id => { persist({ ...data, games:data.games.filter(g=>g.id!==id) }); setModal(null); };
+  const deleteAllGames = () => { persist({ ...data, games:[] }); setModal(null); };
+  const addManualGame = (entry) => { persist({ ...data, games:[entry, ...data.games] }); };
   const updateGame = ug => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); setEditingGame(null); setView(VIEWS.HISTORY); };
   const saveSettings = s => persist({ ...data, settings:s });
   const recalcAllGames = () => {
@@ -362,7 +363,7 @@ export default function App() {
         {view===VIEWS.STATS && <StatsScreen games={data.games} year={statsYear} setYear={setStatsYear}/>}
         {view===VIEWS.SCORES && <ScoresScreen games={data.games} year={scoresYear} setYear={setScoresYear} scrollTarget={scrollTarget} clearScrollTarget={()=>setScrollTarget(null)}/>}
         {view===VIEWS.SETTLEMENT && <SettlementScreen games={data.games}/>}
-        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalc={()=>setModal({title:"全履歴を再計算しますか？",sub:"保存済みの全対局（四麻・三麻）のスコアを現在のロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllGames();}})} onExport={exportData}/>}
+        {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalc={()=>setModal({title:"全履歴を再計算しますか？",sub:"保存済みの全対局（四麻・三麻）のスコアを現在のロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllGames();}})} onExport={exportData} onDeleteAll={()=>setModal({title:"全履歴を削除しますか？",sub:"プレーヤーリストは残ります。この操作は元に戻せません。",confirmLabel:"全て削除する",onConfirm:deleteAllGames})} onAddManual={addManualGame}/>}
         {[VIEWS.HOME,VIEWS.HISTORY,VIEWS.STATS,VIEWS.SCORES,VIEWS.SETTLEMENT,VIEWS.SETTINGS].includes(view) && (
           <nav className="bottom-nav">
             {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTLEMENT,icon:"¥",label:"精算"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
@@ -1066,9 +1067,43 @@ function SettlementScreen({ games }) {
   );
 }
 
-function SettingsScreen({ settings, onSave, onRecalc, onExport }) {
+function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onAddManual }) {
   const [s, setS] = useState(()=>JSON.parse(JSON.stringify(settings)));
   const [saved, setSaved] = useState(false);
+
+  // 手入力フォームの状態
+  const [showManual, setShowManual] = useState(false);
+  const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0,10));
+  const [manualMode, setManualMode] = useState(MODES.FOUR);
+  const [manualPlayers, setManualPlayers] = useState([{name:"",score:""},{name:"",score:""},{name:"",score:""},{name:"",score:""}]);
+  const manualCnt = manualMode===MODES.FOUR ? 4 : 3;
+  const [manualSaved, setManualSaved] = useState(false);
+
+  const handleManualModeChange = m => {
+    setManualMode(m);
+    setManualPlayers(Array.from({length: m===MODES.FOUR?4:3}, ()=>({name:"",score:""})));
+  };
+  const setManualPlayer = (i,field,val) => setManualPlayers(prev=>prev.map((p,pi)=>pi===i?{...p,[field]:val}:p));
+
+  const handleManualSave = () => {
+    const rows = manualPlayers.slice(0,manualCnt);
+    if(rows.some(p=>!p.name||p.score==="")) return;
+    const sorted = [...rows].sort((a,b)=>Number(b.score)-Number(a.score));
+    const results = sorted.map((p,i)=>({
+      id:i, name:p.name, rank:i+1, raw:0, uma:0, rawPoints:0, origIdx:i,
+      total:Number(p.score),
+    }));
+    onAddManual({
+      id:genId(), mode:manualMode,
+      date:new Date(manualDate).toISOString(),
+      settings:DEFAULT_SETTINGS[manualMode],
+      memo:"", results,
+    });
+    setManualSaved(true);
+    setTimeout(()=>setManualSaved(false),1500);
+    setManualPlayers(Array.from({length:manualCnt},()=>({name:"",score:""})));
+  };
+
   const update = (mode,key,val) => setS(prev=>({...prev,[mode]:{...prev[mode],[key]:val}}));
   const updateUma = (mode,idx,val) => setS(prev=>{const uma=[...prev[mode].uma];uma[idx]=val===""||val==="-"?val:(parseInt(val)||0);return{...prev,[mode]:{...prev[mode],uma}};});
   const stepUma = (mode,idx,d) => setS(prev=>{const uma=[...prev[mode].uma];uma[idx]=(parseInt(uma[idx])||0)+d;return{...prev,[mode]:{...prev[mode],uma}};});
@@ -1093,8 +1128,55 @@ function SettingsScreen({ settings, onSave, onRecalc, onExport }) {
           <button className="btn btn-secondary" onClick={onRecalc} style={{width:"100%",fontSize:14}}>
             🔄　全履歴を再計算する（四麻・三麻）
           </button>
+          <button className="btn btn-secondary" onClick={()=>setShowManual(v=>!v)} style={{width:"100%",fontSize:14}}>
+            ✏️　過去データを手入力で追加
+          </button>
+          <button className="btn btn-secondary" onClick={onDeleteAll} style={{width:"100%",fontSize:14,color:"var(--red)",borderColor:"var(--red)"}}>
+            🗑　全履歴を削除する
+          </button>
         </div>
       </div>
+
+      {showManual&&(
+        <div className="card">
+          <div className="card-title" style={{fontSize:13}}>過去データを手入力で追加</div>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div className="setting-row">
+              <div className="setting-label">対局日</div>
+              <input type="date" value={manualDate} onChange={e=>setManualDate(e.target.value)}
+                style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:14,padding:"6px 10px",outline:"none"}}/>
+            </div>
+            <div className="setting-row">
+              <div className="setting-label">種別</div>
+              <div style={{display:"flex",gap:8}}>
+                {[{v:MODES.FOUR,l:"四麻"},{v:MODES.THREE,l:"三麻"}].map(({v,l})=>(
+                  <button key={v} onClick={()=>handleManualModeChange(v)}
+                    style={{padding:"6px 18px",borderRadius:8,border:"1px solid var(--border)",background:manualMode===v?"var(--accent)":"var(--surface2)",color:manualMode===v?"#fff":"var(--text)",fontFamily:"inherit",fontSize:13,cursor:"pointer"}}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{fontSize:12,color:"var(--muted)",letterSpacing:1}}>プレーヤーとスコア（pt）</div>
+            {Array.from({length:manualCnt}).map((_,i)=>(
+              <div key={i} style={{display:"flex",gap:8,alignItems:"center"}}>
+                <select value={manualPlayers[i]?.name||""} onChange={e=>setManualPlayer(i,"name",e.target.value)}
+                  style={{flex:1,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:13,padding:"8px 10px",outline:"none"}}>
+                  <option value="">-- 選択 --</option>
+                  {MEMBER_LIST.map(m=><option key={m} value={m}>{m}</option>)}
+                </select>
+                <input type="number" placeholder="スコア" value={manualPlayers[i]?.score||""} onChange={e=>setManualPlayer(i,"score",e.target.value)}
+                  style={{width:80,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:13,padding:"8px 10px",outline:"none",textAlign:"right"}}/>
+                <span style={{fontSize:12,color:"var(--muted)"}}>pt</span>
+              </div>
+            ))}
+            <button className="btn btn-primary" onClick={handleManualSave}
+              style={{background:manualSaved?"linear-gradient(135deg,#2d8a4e,#5cc87a)":undefined,transition:"background 0.3s"}}>
+              {manualSaved?"✓ 追加しました！":"この対局を追加する"}
+            </button>
+          </div>
+        </div>
+      )}
       {[MODES.FOUR,MODES.THREE].map(mode=>(
         <div key={mode} className="card">
           <div className="card-title">{s[mode].label}設定</div>
