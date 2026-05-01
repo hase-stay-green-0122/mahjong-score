@@ -988,90 +988,77 @@ function StatsScreen({ games, year, setYear }) {
 }
 
 function SettlementScreen({ games }) {
-  const sorted = [...games].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const [selectedId, setSelectedId] = useState(sorted[0]?.id||"");
-  const game = sorted.find(g=>g.id===selectedId)||null;
+  const RATE = 50;
+
+  // 日付（YYYY-MM-DD）ごとに対局をグループ化
+  const dateMap = {};
+  games.forEach(g => {
+    const d = new Date(g.date).toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit"}).replace(/\//g,"-");
+    if(!dateMap[d]) dateMap[d] = [];
+    dateMap[d].push(g);
+  });
+  const dates = Object.keys(dateMap).sort((a,b)=>b.localeCompare(a));
+
+  const [selectedDate, setSelectedDate] = useState(dates[0]||"");
+
+  // 選択日のプレーヤーごとにスコアを合算
+  const playerTotals = {};
+  (dateMap[selectedDate]||[]).forEach(g => {
+    g.results.forEach(r => {
+      if(!playerTotals[r.name]) playerTotals[r.name] = 0;
+      playerTotals[r.name] += r.total;
+    });
+  });
+  const rows = Object.entries(playerTotals)
+    .map(([name,total])=>({name,total,amount:total*RATE}))
+    .sort((a,b)=>b.total-a.total);
 
   const formatDate = d => {
-    const dt = new Date(d);
-    return `${dt.getMonth()+1}/${dt.getDate()} ${dt.getHours().toString().padStart(2,"0")}:${dt.getMinutes().toString().padStart(2,"0")}`;
+    const [y,m,day] = d.split("-");
+    return `${y}年${parseInt(m)}月${parseInt(day)}日`;
   };
-
-  // 年間での通し回数を計算
-  const getGameNo = g => {
-    const year = new Date(g.date).getFullYear();
-    const sameYear = [...games]
-      .filter(x=>new Date(x.date).getFullYear()===year)
-      .sort((a,b)=>new Date(a.date)-new Date(b.date));
-    return sameYear.findIndex(x=>x.id===g.id)+1;
-  };
-
-  const RATE = 50;
 
   return (
     <div className="screen animate-in" style={{gap:14}}>
       <div className="card">
         <div className="card-title">精算</div>
-        {sorted.length===0
+        {dates.length===0
           ? <div style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}}>対局データがありません</div>
           : <>
             <div style={{marginBottom:14}}>
-              <div style={{fontSize:12,color:"var(--muted)",marginBottom:6}}>対局を選択</div>
-              <select
-                value={selectedId}
-                onChange={e=>setSelectedId(e.target.value)}
+              <div style={{fontSize:12,color:"var(--muted)",marginBottom:6}}>開催日を選択</div>
+              <select value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}
                 style={{width:"100%",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:14,padding:"10px 12px",outline:"none"}}>
-                {sorted.map(g=>(
-                  <option key={g.id} value={g.id}>
-                    {`第${getGameNo(g)}回 ${formatDate(g.date)} （${g.mode===MODES.FOUR?"四麻":"三麻"}）`}
-                  </option>
+                {dates.map(d=>(
+                  <option key={d} value={d}>{formatDate(d)}（{dateMap[d].length}卓）</option>
                 ))}
               </select>
             </div>
-            {game&&(
-              <>
-                <div style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>
-                  レート：{RATE}円 / 1pt
-                </div>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
-                  <thead>
-                    <tr style={{borderBottom:"1px solid var(--border)"}}>
-                      <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:12}}>順位</th>
-                      <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:12}}>プレーヤー</th>
-                      <th style={{padding:"8px 10px",textAlign:"right",color:"var(--muted)",fontWeight:700,fontSize:12}}>スコア</th>
-                      <th style={{padding:"8px 10px",textAlign:"right",color:"var(--accent)",fontWeight:700,fontSize:12}}>精算額</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...game.results].sort((a,b)=>a.rank-b.rank).map((r,i)=>{
-                      const amount = r.total * RATE;
-                      return (
-                        <tr key={r.name} style={{borderBottom:"1px solid var(--border)",background:i%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
-                          <td style={{padding:"12px 10px"}}>
-                            <span className={`rank-num ${RANK_CLASSES[i]}`} style={{fontSize:16}}>{r.rank}</span>
-                          </td>
-                          <td style={{padding:"12px 10px",fontWeight:700}}>{r.name}</td>
-                          <td style={{padding:"12px 10px",textAlign:"right",color:r.total>0?"var(--green)":r.total<0?"var(--red)":"var(--muted)",fontWeight:700}}>
-                            {formatPt(r.total,true)}
-                          </td>
-                          <td style={{padding:"12px 10px",textAlign:"right",fontWeight:900,fontSize:16,color:amount>0?"var(--green)":amount<0?"var(--red)":"var(--muted)"}}>
-                            {amount>0?"+":""}{amount.toLocaleString()}円
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{borderTop:"2px solid var(--border)"}}>
-                      <td colSpan={3} style={{padding:"10px 10px",textAlign:"right",fontSize:12,color:"var(--muted)",fontWeight:700}}>合計</td>
-                      <td style={{padding:"10px 10px",textAlign:"right",fontWeight:900,fontSize:14,color:"var(--muted)"}}>
-                        {(game.results.reduce((s,r)=>s+r.total,0)*RATE).toLocaleString()}円
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </>
-            )}
+            <div style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>レート：{RATE}円 / 1pt</div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
+              <thead>
+                <tr style={{borderBottom:"1px solid var(--border)"}}>
+                  <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:12}}>プレーヤー</th>
+                  <th style={{padding:"8px 10px",textAlign:"right",color:"var(--muted)",fontWeight:700,fontSize:12}}>スコア</th>
+                  <th style={{padding:"8px 10px",textAlign:"right",color:"var(--accent)",fontWeight:700,fontSize:12}}>精算額</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r,i)=>(
+                  <tr key={r.name} style={{borderBottom:"1px solid var(--border)",background:i%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
+                    <td style={{padding:"12px 10px",fontWeight:700}}>{r.name}</td>
+                    <td style={{padding:"12px 10px",textAlign:"right",color:r.total>0?"var(--green)":r.total<0?"var(--red)":"var(--muted)",fontWeight:700}}>{formatPt(r.total,true)}</td>
+                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:900,fontSize:16,color:r.amount>0?"var(--green)":r.amount<0?"var(--red)":"var(--muted)"}}>{r.amount>0?"+":""}{r.amount.toLocaleString()}円</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{borderTop:"2px solid var(--border)"}}>
+                  <td colSpan={2} style={{padding:"10px 10px",textAlign:"right",fontSize:12,color:"var(--muted)",fontWeight:700}}>合計</td>
+                  <td style={{padding:"10px 10px",textAlign:"right",fontWeight:900,fontSize:14,color:"var(--muted)"}}>{rows.reduce((s,r)=>s+r.amount,0).toLocaleString()}円</td>
+                </tr>
+              </tfoot>
+            </table>
           </>
         }
       </div>
