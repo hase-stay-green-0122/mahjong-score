@@ -145,8 +145,6 @@ h1,h2,h3{font-family:var(--font)}
 .score-pts{font-size:22px;font-weight:900;min-width:80px;text-align:right}
 .score-input-field{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:20px;font-weight:700;padding:6px 10px;width:110px;text-align:right;outline:none}
 .score-input-field:focus{border-color:var(--accent)}
-.kyotaku-btn{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
-.kyotaku-btn:active{transform:scale(.85);background:var(--accent);color:#fff;border-color:var(--accent)}
 .result-row{display:flex;align-items:center;gap:12px;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
 .result-row.rank1{border-color:var(--accent);background:rgba(179,136,255,.08)}
 .rank-num{font-size:28px;font-weight:900;min-width:36px;text-align:center}
@@ -270,6 +268,7 @@ export default function App() {
   };
 
   const deleteAllGames = () => { persist({ ...data, games:[] }); setModal(null); };
+  const deleteGame = id => { persist({ ...data, games:data.games.filter(g=>g.id!==id) }); setModal(null); };
   const addManualGame = (entry) => { persist({ ...data, games:[entry, ...data.games] }); };
   const updateManualGame = (ug) => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); };
   const updateGame = ug => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); setEditingGame(null); setView(VIEWS.HISTORY); };
