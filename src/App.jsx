@@ -142,7 +142,6 @@ h1,h2,h3{font-family:var(--font)}
 .score-row{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px}
 .score-row.top{border-color:var(--accent);background:rgba(179,136,255,.06)}
 .score-name{flex:1;font-weight:700;font-size:15px}
-.score-pts{font-size:22px;font-weight:900;min-width:80px;text-align:right}
 .score-input-field{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:20px;font-weight:700;padding:6px 10px;width:110px;text-align:right;outline:none}
 .score-input-field:focus{border-color:var(--accent)}
 .result-row{display:flex;align-items:center;gap:12px;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
@@ -368,7 +367,15 @@ export default function App() {
           <nav className="bottom-nav">
             {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTLEMENT,icon:"Pt",label:"精算"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
               .map(({v,icon,label}) => (
-                <button key={v} className={`nav-btn ${view===v?"active":""}`} onClick={()=>setView(v)}>
+                <button key={v} className={`nav-btn ${view===v?"active":""}`} onClick={()=>{
+                  if(v===VIEWS.SETTINGS && view!==VIEWS.SETTINGS){
+                    const pw=window.prompt("パスワードを入力してください");
+                    if(pw==="fight") setView(v);
+                    else if(pw!==null) window.alert("パスワードが違います");
+                  } else {
+                    setView(v);
+                  }
+                }}>
                   <span className="icon">{icon}</span>{label}
                 </button>
               ))}
@@ -770,15 +777,8 @@ function ScoresScreen({ games, year, setYear, scrollTarget, clearScrollTarget })
   }]));
   const stats4 = calcStats(map4);
   const stats3 = calcStats(map3);
-
-  const players = Object.values(playerMap).map(p=>({
-    ...p,
-    avg:       Math.round((p.totalScore/p.games)*10)/10,
-    winRate:   Math.round((p.wins/p.games)*100),
-    renRate:   Math.round((p.top2/p.games)*100),
-    avgRank:   Math.round((p.ranks.reduce((a,b)=>a+b,0)/p.ranks.length)*100)/100,
-    avoidRate: Math.round(((p.games-p.last4)/p.games)*100),
-  })).sort((a,b)=>b.totalScore-a.totalScore);
+  const statsAll = calcStats(playerMap);
+  const players = Object.values(statsAll).sort((a,b)=>b.totalScore-a.totalScore);
 
   const [modeTab, setModeTab] = useState({}); // {playerName: "4" | "3"}
   const getMode = name => modeTab[name] || MODES.FOUR;
@@ -1216,7 +1216,7 @@ function SettingsScreen({ settings, onSave, onRecalc, onExport, onDeleteAll, onA
           <button className="btn btn-secondary" onClick={()=>setShowManual(v=>!v)} style={{width:"100%",fontSize:14}}>
             ✏️　過去データを手入力で追加
           </button>
-          <button className="btn btn-secondary" onClick={()=>{const pw=window.prompt("パスワードを入力してください");if(pw==="fight")onDeleteAll();else if(pw!==null)window.alert("パスワードが違います");}} style={{width:"100%",fontSize:14,color:"var(--red)",borderColor:"var(--red)"}}>
+          <button className="btn btn-secondary" onClick={onDeleteAll} style={{width:"100%",fontSize:14,color:"var(--red)",borderColor:"var(--red)"}}>
             🗑　全履歴を削除する
           </button>
         </div>
