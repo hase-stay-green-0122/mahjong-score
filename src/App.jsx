@@ -847,15 +847,29 @@ function StatsScreen({ games, year, setYear }) {
   const [activePlayer, setActivePlayer] = useState(null);
   const yearGames = games.filter(g=>new Date(g.date).getFullYear()===year).sort((a,b)=>new Date(a.date)-new Date(b.date));
 
-  const playerMap = {};
-  yearGames.forEach(g=>g.results.forEach(r=>{
-    if(!playerMap[r.name]) playerMap[r.name]={name:r.name,cumScore:0,entries:[],games:0};
-    const p=playerMap[r.name];
-    p.cumScore+=r.total; p.games++;
-    p.entries.push({gameIdx:yearGames.indexOf(g),cumScore:p.cumScore});
-  }));
+  // 同日の対局を1日単位にまとめる
+  const dayMap = {};
+  yearGames.forEach(g=>{
+    const d = new Date(g.date).toLocaleDateString("ja-JP",{month:"2-digit",day:"2-digit"});
+    if(!dayMap[d]) dayMap[d] = {date:d, results:{}};
+    g.results.forEach(r=>{
+      if(!dayMap[d].results[r.name]) dayMap[d].results[r.name] = 0;
+      dayMap[d].results[r.name] += r.total;
+    });
+  });
+  const dayGroups = Object.values(dayMap); // [{date, results:{name:score}}]
 
-  // MEMBER_LIST の順番で色・形状を固定割り当て（対局がない回があっても色がズレない）
+  const playerMap = {};
+  dayGroups.forEach((day,di)=>{
+    Object.entries(day.results).forEach(([name,score])=>{
+      if(!playerMap[name]) playerMap[name]={name:name,cumScore:0,entries:[],games:0};
+      const p=playerMap[name];
+      p.cumScore+=score; p.games++;
+      p.entries.push({dayIdx:di,score,cumScore:p.cumScore});
+    });
+  });
+
+  // MEMBER_LIST の順番で色・形状を固定割り当て
   const players = Object.values(playerMap).map(p=>{
     const mi = MEMBER_LIST.indexOf(p.name);
     const ci = mi >= 0 ? mi : 0;
@@ -864,7 +878,8 @@ function StatsScreen({ games, year, setYear }) {
       color: GRAPH_COLORS[ci % GRAPH_COLORS.length],
       shape: GRAPH_SHAPES[ci % GRAPH_SHAPES.length],
       totalScore: p.cumScore,
-      cumScores: yearGames.map((_,gi)=>{const e=p.entries.find(e=>e.gameIdx===gi);return e?e.cumScore:null;}),
+      cumScores: dayGroups.map((_,di)=>{const e=p.entries.find(e=>e.dayIdx===di);return e?e.cumScore:null;}),
+      dayScores: dayGroups.map((_,di)=>{const e=p.entries.find(e=>e.dayIdx===di);return e?e.score:null;}),
     };
   }).sort((a,b)=>b.totalScore-a.totalScore);
 
@@ -872,7 +887,7 @@ function StatsScreen({ games, year, setYear }) {
   const scoreMin = Math.min(0,...allScores||[0]);
   const scoreMax = Math.max(0,...allScores||[0]);
 
-  if(yearGames.length===0) return (
+  if(dayGroups.length===0) return (
     <div className="screen animate-in">
       <YearSelector year={year} setYear={setYear} games={games}/>
       <div className="empty-state"><div className="empty-icon">📊</div>{year}年のデータがありません</div>
@@ -885,7 +900,7 @@ function StatsScreen({ games, year, setYear }) {
   const yStart=Math.floor(scoreMin/step)*step;
   const yGrids=[]; for(let v=yStart;v<=scoreMax+step;v+=step) yGrids.push(v);
   const toY=v=>PAD_TOP+PLOT_H-((v-scoreMin)/range)*PLOT_H;
-  const n=yearGames.length;
+  const n=dayGroups.length;
   const COL_W=Math.max(48,300/n);
   const W=COL_W*(n-1||1);
   const toX=i=>i*COL_W;
@@ -899,7 +914,7 @@ function StatsScreen({ games, year, setYear }) {
             <tr style={{background:"var(--surface2)",borderBottom:"1px solid var(--border)"}}>
               <th style={{padding:"8px 10px",textAlign:"left",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",position:"sticky",left:0,width:120,minWidth:120,background:"var(--surface2)",zIndex:2}}>順位　プレイヤー</th>
               <th style={{padding:"8px 6px",textAlign:"center",color:"var(--accent)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",minWidth:48,width:52,position:"sticky",left:120,background:"var(--surface2)",zIndex:2,borderRight:"1px solid var(--border)"}}>総合</th>
-              {yearGames.map((g,i)=>{const d=new Date(g.date);return <th key={i} style={{padding:"4px 6px",textAlign:"center",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",minWidth:48}}><div style={{fontSize:10,color:"var(--accent)"}}>{`第${i+1}回`}</div><div>{`${d.getMonth()+1}/${d.getDate()}`}</div></th>;})}
+              {dayGroups.map((day,i)=><th key={i} style={{padding:"4px 6px",textAlign:"center",color:"var(--muted)",fontWeight:700,fontSize:11,whiteSpace:"nowrap",minWidth:48}}><div style={{fontSize:10,color:"var(--accent)"}}>{`第${i+1}回`}</div><div>{day.date}</div></th>)}
             </tr>
           </thead>
           <tbody>
@@ -915,9 +930,9 @@ function StatsScreen({ games, year, setYear }) {
                 <td style={{padding:"8px 6px",textAlign:"center",fontWeight:900,fontSize:13,color:p.totalScore>0?"var(--green)":p.totalScore<0?"var(--red)":"var(--muted)",position:"sticky",left:120,background:pi%2===0?"var(--surface)":"#1e1830",zIndex:1,borderRight:"1px solid var(--border)"}}>
                   {formatPt(p.totalScore,true)}
                 </td>
-                {yearGames.map((g,gi)=>{
-                  const r=g.results.find(r=>r.name===p.name);
-                  return <td key={gi} style={{padding:"8px 6px",textAlign:"center",fontWeight:700,color:r?(r.total>0?"var(--green)":r.total<0?"var(--red)":"var(--muted)"):"var(--border)"}}>{r?formatPt(r.total,true):"—"}</td>;
+                {dayGroups.map((_,di)=>{
+                  const score=p.dayScores[di];
+                  return <td key={di} style={{padding:"8px 6px",textAlign:"center",fontWeight:700,color:score!=null?(score>0?"var(--green)":score<0?"var(--red)":"var(--muted)"):"var(--border)"}}>{score!=null?formatPt(score,true):"—"}</td>;
                 })}
               </tr>
             ))}
@@ -941,8 +956,8 @@ function StatsScreen({ games, year, setYear }) {
           <div style={{overflowX:"auto",flex:1}}>
             <svg width={W+12} height={H} style={{display:"block",minWidth:"100%"}}>
               {yGrids.map((v,i)=>{const y=toY(v);if(y<PAD_TOP-4||y>H-PAD_BTM+4)return null;return <line key={i} x1={0} y1={y} x2={W+12} y2={y} stroke={v===0?"rgba(255,255,255,0.25)":"rgba(255,255,255,0.07)"} strokeWidth={v===0?1.2:1} strokeDasharray={v===0?"4,3":"2,4"}/>;})}
-              {yearGames.map((_,i)=><line key={i} x1={toX(i)} y1={PAD_TOP} x2={toX(i)} y2={H-PAD_BTM} stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>)}
-              {yearGames.map((_,i)=><text key={i} x={toX(i)} y={H-10} textAnchor="middle" fontSize="9" fill="var(--muted)" fontFamily="var(--font)">{`第${i+1}回`}</text>)}
+              {dayGroups.map((_,i)=><line key={i} x1={toX(i)} y1={PAD_TOP} x2={toX(i)} y2={H-PAD_BTM} stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>)}
+              {dayGroups.map((_,i)=><text key={i} x={toX(i)} y={H-10} textAnchor="middle" fontSize="9" fill="var(--muted)" fontFamily="var(--font)">{`第${i+1}回`}</text>)}
               <line x1={0} y1={H-PAD_BTM} x2={W+12} y2={H-PAD_BTM} stroke="rgba(255,255,255,0.15)" strokeWidth="1"/>
               {players.map(p=>{
                 const pts=p.cumScores.map((v,i)=>v!==null?{x:toX(i),y:toY(v),v}:null).filter(Boolean);
