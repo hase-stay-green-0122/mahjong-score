@@ -366,7 +366,7 @@ export default function App() {
         {view===VIEWS.SETTINGS && <SettingsScreen settings={data.settings} onSave={saveSettings} onRecalc={()=>setModal({title:"全履歴を再計算しますか？",sub:"保存済みの全対局（四麻・三麻）のスコアを現在のロジックで再計算します。この操作は元に戻せません。",confirmLabel:"再計算する",onConfirm:()=>{setModal(null);recalcAllGames();}})} onExport={exportData} onDeleteAll={()=>setModal({title:"全履歴を削除しますか？",sub:"プレーヤーリストは残ります。この操作は元に戻せません。",confirmLabel:"全て削除する",onConfirm:deleteAllGames})} onAddManual={addManualGame} onUpdateManual={updateManualGame} manualGames={data.games.filter(g=>g.manual)}/>}
         {[VIEWS.HOME,VIEWS.HISTORY,VIEWS.STATS,VIEWS.SCORES,VIEWS.SETTLEMENT,VIEWS.SETTINGS].includes(view) && (
           <nav className="bottom-nav">
-            {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTLEMENT,icon:"¥",label:"精算"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
+            {[{v:VIEWS.HOME,icon:"🀄",label:"成績"},{v:VIEWS.STATS,icon:"📈",label:"推移"},{v:VIEWS.SCORES,icon:"📊",label:"統計"},{v:VIEWS.HISTORY,icon:"📋",label:"履歴"},{v:VIEWS.SETTLEMENT,icon:"Pt",label:"精算"},{v:VIEWS.SETTINGS,icon:"⚙️",label:"設定"}]
               .map(({v,icon,label}) => (
                 <button key={v} className={`nav-btn ${view===v?"active":""}`} onClick={()=>setView(v)}>
                   <span className="icon">{icon}</span>{label}
@@ -755,22 +755,70 @@ function EditGameScreen({ game, onSave, onCancel }) {
 
 function ScoresScreen({ games, year, setYear, scrollTarget, clearScrollTarget }) {
   const { yearGames, playerMap } = buildYearData(games, year, true);
+
+  // 四麻・三麻それぞれのデータを別途集計
+  const { playerMap: map4 } = buildYearData(games.filter(g=>g.mode===MODES.FOUR), year, true);
+  const { playerMap: map3 } = buildYearData(games.filter(g=>g.mode===MODES.THREE), year, true);
+
+  const calcStats = map => Object.fromEntries(Object.entries(map).map(([name,p])=>[name, {
+    ...p,
+    avg:       Math.round((p.totalScore/p.games)*10)/10,
+    winRate:   Math.round((p.wins/p.games)*100),
+    renRate:   Math.round((p.top2/p.games)*100),
+    avgRank:   Math.round((p.ranks.reduce((a,b)=>a+b,0)/p.ranks.length)*100)/100,
+    avoidRate: Math.round(((p.games-p.last4)/p.games)*100),
+  }]));
+  const stats4 = calcStats(map4);
+  const stats3 = calcStats(map3);
+
   const players = Object.values(playerMap).map(p=>({
     ...p,
-    avg:        Math.round((p.totalScore/p.games)*10)/10,
-    winRate:    Math.round((p.wins/p.games)*100),
-    renRate:    Math.round((p.top2/p.games)*100),
-    avgRank:    Math.round((p.ranks.reduce((a,b)=>a+b,0)/p.ranks.length)*100)/100,
-    avoidRate:  Math.round(((p.games-p.last4)/p.games)*100),
+    avg:       Math.round((p.totalScore/p.games)*10)/10,
+    winRate:   Math.round((p.wins/p.games)*100),
+    renRate:   Math.round((p.top2/p.games)*100),
+    avgRank:   Math.round((p.ranks.reduce((a,b)=>a+b,0)/p.ranks.length)*100)/100,
+    avoidRate: Math.round(((p.games-p.last4)/p.games)*100),
   })).sort((a,b)=>b.totalScore-a.totalScore);
+
+  const [modeTab, setModeTab] = useState({}); // {playerName: "4" | "3"}
+  const getMode = name => modeTab[name] || MODES.FOUR;
 
   useEffect(()=>{
     if(!scrollTarget) return;
-    const id = `score-player-${scrollTarget}`;
-    const el = document.getElementById(id);
-    if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); }
+    const el = document.getElementById(`score-player-${scrollTarget}`);
+    if(el) el.scrollIntoView({behavior:"smooth",block:"center"});
     clearScrollTarget();
   },[scrollTarget]);
+
+  const StatBody = ({p}) => {
+    const rows = [
+      ["トータルスコア", formatPt(p.totalScore,true), p.totalScore>=0?"pos":"neg"],
+      ["平均スコア",     formatPt(p.avg,true),        p.avg>=0?"pos":"neg"],
+      ["平均順位",       p.avgRank,                   ""],
+      ["トップ獲得回数", `${p.wins}回`,               ""],
+      ["トップ獲得率",   `${p.winRate}%`,             ""],
+    ];
+    return (
+      <div className="stat-body">
+        <div style={{fontSize:12,color:"var(--muted)",marginBottom:4}}>{p.games}戦</div>
+        {rows.map(([l,v,c])=>(
+          <div key={l} className="stat-row"><span>{l}</span><span className={`stat-val ${c}`}>{v}</span></div>
+        ))}
+        <div className="stat-row">
+          <span>連帯率 <span style={{fontSize:10,color:"var(--muted)"}}>（1・2位）</span></span>
+          <span className="stat-val" style={{color:p.renRate>=50?"var(--accent)":"var(--text)"}}>{p.renRate}%</span>
+        </div>
+        <div className="stat-row">
+          <span>ラス回避率</span>
+          <span className="stat-val" style={{color:p.avoidRate>=75?"var(--green)":p.avoidRate<50?"var(--red)":"var(--text)"}}>{p.avoidRate}%</span>
+        </div>
+        <div className="stat-row">
+          <span>最高素点</span>
+          <span className="stat-val" style={{color:"var(--accent2)"}}>{p.bestRawPoints.toLocaleString()}</span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="screen animate-in">
@@ -779,37 +827,36 @@ function ScoresScreen({ games, year, setYear, scrollTarget, clearScrollTarget })
         ? <div className="empty-state"><div className="empty-icon">🏆</div>{year}年のデータがありません</div>
         : <>
           <div style={{fontSize:12,color:"var(--muted)",textAlign:"right"}}>{year}年 全{yearGames.length}対局</div>
-          {players.map((p,i)=>(
-            <div key={p.name} id={`score-player-${p.name}`} className="stat-card" style={{transition:"box-shadow 0.4s",boxShadow:scrollTarget===p.name?"0 0 0 2px var(--accent)":"none"}}>
-              <div className="stat-header">
-                {i<3?<span>{RANK_MEDALS[i]}</span>:<span style={{color:"var(--muted)",fontSize:13}}>{i+1}位</span>}
-                {p.name}<span style={{marginLeft:"auto",fontSize:13,color:"var(--muted)"}}>{p.games}戦</span>
+          {players.map((p,i)=>{
+            const mode = getMode(p.name);
+            const s4 = stats4[p.name];
+            const s3 = stats3[p.name];
+            const current = mode===MODES.FOUR ? s4 : s3;
+            return (
+              <div key={p.name} id={`score-player-${p.name}`} className="stat-card" style={{transition:"box-shadow 0.4s",boxShadow:scrollTarget===p.name?"0 0 0 2px var(--accent)":"none"}}>
+                <div className="stat-header">
+                  {i<3?<span>{RANK_MEDALS[i]}</span>:<span style={{color:"var(--muted)",fontSize:13}}>{i+1}位</span>}
+                  {p.name}
+                  <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+                    {[{v:MODES.FOUR,l:"四麻",has:!!s4},{v:MODES.THREE,l:"三麻",has:!!s3}].map(({v,l,has})=>(
+                      <button key={v} onClick={()=>has&&setModeTab(prev=>({...prev,[p.name]:v}))}
+                        style={{padding:"2px 10px",borderRadius:6,border:"1px solid var(--border)",
+                          background:mode===v?"var(--accent)":"var(--surface2)",
+                          color:mode===v?"#fff":has?"var(--text)":"var(--muted)",
+                          fontFamily:"inherit",fontSize:11,cursor:has?"pointer":"default",
+                          opacity:has?1:0.4}}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {current
+                  ? <StatBody p={current}/>
+                  : <div style={{padding:"16px",textAlign:"center",fontSize:12,color:"var(--muted)"}}>データなし</div>
+                }
               </div>
-              <div className="stat-body">
-                {[
-                  ["トータルスコア", formatPt(p.totalScore,true), p.totalScore>=0?"pos":"neg"],
-                  ["平均スコア",     formatPt(p.avg,true),        p.avg>=0?"pos":"neg"],
-                  ["平均順位",       p.avgRank,                   ""],
-                  ["トップ獲得回数", `${p.wins}回`,               ""],
-                  ["トップ獲得率",   `${p.winRate}%`,             ""],
-                ].map(([l,v,c])=>(
-                  <div key={l} className="stat-row"><span>{l}</span><span className={`stat-val ${c}`}>{v}</span></div>
-                ))}
-                <div className="stat-row">
-                  <span>連帯率 <span style={{fontSize:10,color:"var(--muted)"}}>（1・2位）</span></span>
-                  <span className="stat-val" style={{color:p.renRate>=50?"var(--accent)":"var(--text)"}}>{p.renRate}%</span>
-                </div>
-                <div className="stat-row">
-                  <span>ラス回避率</span>
-                  <span className="stat-val" style={{color:p.avoidRate>=75?"var(--green)":p.avoidRate<50?"var(--red)":"var(--text)"}}>{p.avoidRate}%</span>
-                </div>
-                <div className="stat-row">
-                  <span>最高素点</span>
-                  <span className="stat-val" style={{color:"var(--accent2)"}}>{p.bestRawPoints.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </>
       }
     </div>
@@ -1051,7 +1098,7 @@ function SettlementScreen({ games }) {
                 ))}
               </select>
             </div>
-            <div style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>レート：{RATE}円 / 1pt</div>
+            <div style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>レート：{RATE}Pt / 1Scr</div>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
               <thead>
                 <tr style={{borderBottom:"1px solid var(--border)"}}>
@@ -1065,14 +1112,14 @@ function SettlementScreen({ games }) {
                   <tr key={r.name} style={{borderBottom:"1px solid var(--border)",background:i%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
                     <td style={{padding:"12px 10px",fontWeight:700}}>{r.name}</td>
                     <td style={{padding:"12px 10px",textAlign:"right",color:r.total>0?"var(--green)":r.total<0?"var(--red)":"var(--muted)",fontWeight:700}}>{formatPt(r.total,true)}</td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:900,fontSize:16,color:r.amount>0?"var(--green)":r.amount<0?"var(--red)":"var(--muted)"}}>{r.amount>0?"+":""}{r.amount.toLocaleString()}円</td>
+                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:900,fontSize:16,color:r.amount>0?"var(--green)":r.amount<0?"var(--red)":"var(--muted)"}}>{r.amount>0?"+":""}{r.amount.toLocaleString()}Pt</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{borderTop:"2px solid var(--border)"}}>
                   <td colSpan={2} style={{padding:"10px 10px",textAlign:"right",fontSize:12,color:"var(--muted)",fontWeight:700}}>合計</td>
-                  <td style={{padding:"10px 10px",textAlign:"right",fontWeight:900,fontSize:14,color:"var(--muted)"}}>{rows.reduce((s,r)=>s+r.amount,0).toLocaleString()}円</td>
+                  <td style={{padding:"10px 10px",textAlign:"right",fontWeight:900,fontSize:14,color:"var(--muted)"}}>{rows.reduce((s,r)=>s+r.amount,0).toLocaleString()}Pt</td>
                 </tr>
               </tfoot>
             </table>
