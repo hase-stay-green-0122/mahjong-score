@@ -227,7 +227,19 @@ const selectStyle = {
   backgroundRepeat:"no-repeat", backgroundPosition:"right 12px center",
 };
 
+const AUTH_KEY = "mfc_auth_ts";
+const AUTH_DURATION = 14 * 24 * 60 * 60 * 1000; // 2週間
+
+function isAuthed() {
+  const ts = localStorage.getItem(AUTH_KEY);
+  if(!ts) return false;
+  return Date.now() - Number(ts) < AUTH_DURATION;
+}
+
 export default function App() {
+  const [authed, setAuthed] = useState(isAuthed);
+  const [pwInput, setPwInput] = useState("");
+  const [pwError, setPwError] = useState(false);
   const [data, setData] = useState({ games:[], settings:DEFAULT_SETTINGS });
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState(VIEWS.HOME);
@@ -309,6 +321,32 @@ export default function App() {
       <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,color:"var(--accent)",fontFamily:"var(--font)"}}>
         <div style={{fontSize:48}}>🀄</div>
         <div style={{fontSize:16,letterSpacing:2}}>読み込み中...</div>
+      </div>
+    </>
+  );
+
+  if(!authed) return (
+    <><style>{css}</style>
+      <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--font)"}}>
+        <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:"32px 24px",width:"100%",maxWidth:340,display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
+          <div style={{fontSize:40}}>🀄</div>
+          <div style={{fontSize:18,fontWeight:900,color:"var(--accent)",letterSpacing:2}}>麻雀格闘倶楽部</div>
+          <div style={{fontSize:13,color:"var(--muted)"}}>パスワードを入力してください</div>
+          <input
+            type="password"
+            value={pwInput}
+            onChange={e=>{setPwInput(e.target.value);setPwError(false);}}
+            onKeyDown={e=>{if(e.key==="Enter"){if(pwInput==="fight"){localStorage.setItem(AUTH_KEY,String(Date.now()));setAuthed(true);}else setPwError(true);}}}
+            placeholder="password"
+            autoFocus
+            style={{width:"100%",background:"var(--surface2)",border:`1px solid ${pwError?"var(--red)":"var(--border)"}`,borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:16,padding:"10px 14px",outline:"none",textAlign:"center",letterSpacing:4}}
+          />
+          {pwError&&<div style={{fontSize:12,color:"var(--red)"}}>パスワードが違います</div>}
+          <button className="btn btn-primary" onClick={()=>{
+            if(pwInput==="fight"){localStorage.setItem(AUTH_KEY,String(Date.now()));setAuthed(true);}
+            else setPwError(true);
+          }}>入力</button>
+        </div>
       </div>
     </>
   );
@@ -1096,7 +1134,7 @@ function SettlementScreen({ games }) {
               <select value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}
                 style={{width:"100%",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:14,padding:"10px 12px",outline:"none"}}>
                 {dates.map(d=>(
-                  <option key={d} value={d}>{formatDate(d)}（{dateMap[d].length}卓）</option>
+                  <option key={d} value={d}>{formatDate(d)}（{dateMap[d].length}対局）</option>
                 ))}
               </select>
             </div>
