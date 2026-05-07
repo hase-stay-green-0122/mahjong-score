@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, setDoc, updateDoc, arrayUnion, onSnapshot } from "firebase/firestore";
 
 const db = getFirestore(initializeApp({
   apiKey: "AIzaSyDwr_jHSbTIjqhy-pPmwSg0_PIWFl4VbDs",
@@ -273,14 +273,15 @@ export default function App() {
 
   const finishGame = g => {
     const results = calcFinalScores(g.players, g.settings);
-    persist({ ...data, games:[{ id:g.id, mode:g.mode, date:new Date().toISOString(), settings:g.settings, results, memo:g.memo||"" }, ...data.games] });
+    const newGame = { id:g.id, mode:g.mode, date:new Date().toISOString(), settings:g.settings, results, memo:g.memo||"" };
+    updateDoc(DATA_DOC, { games: arrayUnion(newGame) }).catch(e=>console.error("保存エラー:", e));
     setTables(prev => prev.map((t,i) => i===activeIdx ? {...t,finalResults:results} : t));
     setView(VIEWS.RESULT);
   };
 
   const deleteAllGames = () => { persist({ ...data, games:[] }); setModal(null); };
   const deleteGame = id => { persist({ ...data, games:data.games.filter(g=>g.id!==id) }); setModal(null); };
-  const addManualGame = (entry) => { persist({ ...data, games:[entry, ...data.games] }); };
+  const addManualGame = (entry) => { updateDoc(DATA_DOC, { games: arrayUnion(entry) }).catch(e=>console.error("保存エラー:", e)); };
   const updateManualGame = (ug) => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); };
   const updateGame = ug => { persist({ ...data, games:data.games.map(g=>g.id===ug.id?ug:g) }); setEditingGame(null); setView(VIEWS.HISTORY); };
   const saveSettings = s => persist({ ...data, settings:s });
@@ -304,10 +305,6 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const confirmFinish = () => {
-    setModal({ title:"対局を終了しますか？", sub:"現在の点数で集計します", confirmLabel:"終了して集計", onConfirm:()=>{ setModal(null); finishGame(gs); } });
-  };
-
   const Header = ({title, backFn, rightEl}) => (
     <div className="app-header">
       {backFn ? <button className="back-btn" onClick={backFn}>‹</button> : <div style={{width:40}}/>}
@@ -325,6 +322,11 @@ export default function App() {
     </>
   );
 
+  const handleAuth = () => {
+    if(pwInput==="fight"){ localStorage.setItem(AUTH_KEY,String(Date.now())); setAuthed(true); }
+    else setPwError(true);
+  };
+
   if(!authed) return (
     <><style>{css}</style>
       <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--font)"}}>
@@ -336,16 +338,13 @@ export default function App() {
             type="password"
             value={pwInput}
             onChange={e=>{setPwInput(e.target.value);setPwError(false);}}
-            onKeyDown={e=>{if(e.key==="Enter"){if(pwInput==="fight"){localStorage.setItem(AUTH_KEY,String(Date.now()));setAuthed(true);}else setPwError(true);}}}
+            onKeyDown={e=>e.key==="Enter"&&handleAuth()}
             placeholder="password"
             autoFocus
             style={{width:"100%",background:"var(--surface2)",border:`1px solid ${pwError?"var(--red)":"var(--border)"}`,borderRadius:8,color:"var(--text)",fontFamily:"inherit",fontSize:16,padding:"10px 14px",outline:"none",textAlign:"center",letterSpacing:4}}
           />
           {pwError&&<div style={{fontSize:12,color:"var(--red)"}}>パスワードが違います</div>}
-          <button className="btn btn-primary" onClick={()=>{
-            if(pwInput==="fight"){localStorage.setItem(AUTH_KEY,String(Date.now()));setAuthed(true);}
-            else setPwError(true);
-          }}>入力</button>
+          <button className="btn btn-primary" onClick={handleAuth}>入力</button>
         </div>
       </div>
     </>
@@ -368,7 +367,7 @@ export default function App() {
         {view===VIEWS.SETUP && (<><Header title="新規対局" backFn={goHome}/><SetupScreen settings={data.settings} onStart={startGames} onCancel={goHome}/></>)}
         {view===VIEWS.GAME && gs && (
           <>
-            <Header title={tables.length>1?`${activeIdx+1}卓目 対局中`:"対局中"} backFn={confirmFinish}/>
+            <Header title={tables.length>1?`${activeIdx+1}卓目 対局中`:"対局中"} backFn={goHome}/>
             {tables.length>1 && (
               <div style={{display:"flex",gap:6,padding:"8px 16px 0",background:"var(--surface)",borderBottom:"1px solid var(--border)"}}>
                 {tables.map((t,i) => (
