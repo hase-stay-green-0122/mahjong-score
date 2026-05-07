@@ -327,10 +327,10 @@ export default function App() {
       )}
       <div id="root">
         {view===VIEWS.HOME && <HomeScreen onStart={()=>setView(VIEWS.SETUP)} games={data.games} onPlayerTap={name=>{setScoresYear(new Date().getFullYear());setScrollTarget(name);setView(VIEWS.SCORES);}}/>}
-        {view===VIEWS.SETUP && (<><Header title="新規対局" backFn={goHome}/><SetupScreen settings={data.settings} onStart={startGames}/></>)}
+        {view===VIEWS.SETUP && (<><Header title="新規対局" backFn={goHome}/><SetupScreen settings={data.settings} onStart={startGames} onCancel={goHome}/></>)}
         {view===VIEWS.GAME && gs && (
           <>
-            <Header title={tables.length>1?`${activeIdx+1}卓目 対局中`:"対局中"} backFn={confirmFinish} rightEl={<button className="action-btn" onClick={confirmFinish}>終了</button>}/>
+            <Header title={tables.length>1?`${activeIdx+1}卓目 対局中`:"対局中"} backFn={confirmFinish}/>
             {tables.length>1 && (
               <div style={{display:"flex",gap:6,padding:"8px 16px 0",background:"var(--surface)",borderBottom:"1px solid var(--border)"}}>
                 {tables.map((t,i) => (
@@ -343,7 +343,7 @@ export default function App() {
                 ))}
               </div>
             )}
-            <GameScreen gs={gs} onFinish={finishGame}/>
+            <GameScreen gs={gs} onFinish={finishGame} onCancel={goHome}/>
           </>
         )}
         {view===VIEWS.RESULT && gs?.finalResults && (
@@ -482,7 +482,7 @@ function TableSetup({ tableIdx, mode, setMode, players, setPlayers, usedNames, s
   );
 }
 
-function SetupScreen({ settings, onStart }) {
+function SetupScreen({ settings, onStart, onCancel }) {
   const [mode, setMode] = useState(MODES.FOUR);
   const [players, setPlayers] = useState(["","","",""]);
   const cnt = mode===MODES.FOUR?4:3;
@@ -496,13 +496,14 @@ function SetupScreen({ settings, onStart }) {
         対局開始
       </button>
       {!canStart&&<div style={{textAlign:"center",fontSize:12,color:"var(--muted)",marginTop:-8}}>全プレイヤーを選択してください</div>}
+      <button className="btn btn-secondary" onClick={onCancel}>キャンセル</button>
     </div>
   );
 }
 
-function GameScreen({ gs, onFinish }) {
-  // 1000点単位で入力（例: 38600点 → 38.6と入力）
-  const [tmp, setTmp] = useState(gs.players.map(p=>String(p.points/1000)));
+function GameScreen({ gs, onFinish, onCancel }) {
+  // 1000点単位で入力（例: 38600点 → 38.6と入力）、デフォルト0
+  const [tmp, setTmp] = useState(gs.players.map(()=>"0"));
   const [memo, setMemo] = useState(gs.memo||"");
 
   const parsedTmp = tmp.map(v=>(parseFloat(String(v).replace(/,/g,""))||0)*1000);
@@ -577,6 +578,7 @@ function GameScreen({ gs, onFinish }) {
         onClick={handleFinish}>
         {diff===0 ? "🏁 終了・集計" : `⚠ 合計が合いません（${diff>0?"+":""}${diff}）`}
       </button>
+      <button className="btn btn-secondary" onClick={onCancel}>キャンセル</button>
     </div>
   );
 }
